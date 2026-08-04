@@ -2,12 +2,15 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, X, Info, AlertTriangle } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import NotificationCenterDrawer from './NotificationCenterDrawer';
 
 const NotificationSystem = () => {
     const { toasts, confirmState } = useNotification();
 
     return (
         <>
+            <NotificationCenterDrawer />
+
             {/* Global Toasts */}
             <div style={{
                 position: 'fixed', bottom: '2rem', right: '2rem',

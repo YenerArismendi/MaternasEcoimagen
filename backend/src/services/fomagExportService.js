@@ -13,179 +13,191 @@ function fmtDate(value) {
   catch { return String(value); }
 }
 
-function calcEdad(fechaNacimiento) {
-  if (!fechaNacimiento) return '';
-  const diff = Date.now() - new Date(fechaNacimiento).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-}
-
-function calcEdadGestacional(fechaEmbarazo, dateToCompare = Date.now()) {
-  if (!fechaEmbarazo) return '';
-  const diff = new Date(dateToCompare).getTime() - new Date(fechaEmbarazo).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24 * 7));
-}
-
 // ─── Mapeo de datos ──────────────────────────────────────────────────────
-function flattenMaterna(materna, index) {
-  const ficha = materna.fichaFomag || {};
-  const eventos = materna.eventos || [];
-  
-  const controles = eventos
-    .filter(e => e.esControl && e.estado === 'REALIZADO')
-    .sort((a, b) => new Date(a.fechaRealizada) - new Date(b.fechaRealizada));
-
-  const ecografias = eventos.filter(e => /ecograf/i.test(e.descripcion)).sort((a, b) => new Date(a.fechaProgramada) - new Date(b.fechaProgramada));
-  
+function flattenGestante(gestante, index) {
   const row = {};
   const setVal = (colStr, val) => {
     if (val !== null && val !== undefined && val !== '') row[colToNum(colStr)] = val;
   };
 
-  // 1. Identificación y Demografía
-  setVal('A', index + 1);
-  setVal('B', ficha.regional);
-  setVal('C', ficha.ips);
-  setVal('E', ficha.departamento);
-  setVal('F', ficha.municipio);
-  
-  const partesNombre = (materna.nombre || '').split(' ');
-  const apellidos = partesNombre.length > 2 ? partesNombre.slice(-2).join(' ') : (partesNombre[1] || '');
-  const nombres = partesNombre.length > 2 ? partesNombre.slice(0, -2).join(' ') : (partesNombre[0] || '');
-  
-  setVal('G', nombres);
-  setVal('H', apellidos);
-  setVal('I', materna.tipoDocumento);
-  setVal('J', materna.documento);
-  setVal('L', fmtDate(materna.fechaNacimiento));
-  setVal('M', calcEdad(materna.fechaNacimiento));
-  setVal('N', ficha.nivelEducativo);
-  setVal('P', materna.direccion);
-  setVal('R', materna.telefono);
-  setVal('T', ficha.ocupacion);
-  setVal('U', ficha.etnia || ficha.grupoEtnico); 
-  setVal('V', ficha.identidadGenero);
-  setVal('W', ficha.discapacidad);
-  setVal('X', ficha.victimaViolencia);
-  setVal('Z', ficha.atencionPreconcepcional);
-  setVal('AA', ficha.asesoriaAnticonceptivo);
-  setVal('AB', ficha.acidoFolicoPrevio);
-  setVal('AC', ficha.citasPreconcepcionales);
+  // 1. DATOS BÁSICOS E IDENTIFICACIÓN (Bloque A8 - Y8)
+  setVal('A', index + 1); // Consecutivo
+  setVal('B', gestante.region);
+  setVal('C', gestante.ipsAtencion);
+  setVal('D', gestante.codigoHabilitacionIPS);
+  setVal('E', gestante.departamento);
+  setVal('F', gestante.municipio);
+  setVal('G', gestante.nombres);
+  setVal('H', gestante.apellidos);
+  setVal('I', gestante.tipoIdentificacion);
+  setVal('J', gestante.numeroIdentificacion);
+  setVal('K', gestante.estadoCivil);
+  setVal('L', fmtDate(gestante.fechaNacimiento));
+  setVal('M', gestante.edadActual);
+  setVal('N', gestante.escolaridad);
+  setVal('O', gestante.municipioResidencia);
+  setVal('P', gestante.direccion);
+  setVal('Q', gestante.barrio);
+  setVal('R', gestante.telefonoCel1);
+  setVal('S', gestante.telefonoCel2);
+  setVal('T', gestante.ocupacionOficio);
+  setVal('U', gestante.enfoqueDiferencial);
+  setVal('U', gestante.etnia); 
+  setVal('V', gestante.identidadGenero);
+  setVal('W', gestante.discapacidad);
+  setVal('X', gestante.victimaViolencia);
+  setVal('Y', gestante.caracterizacionPoblacion);
 
-  // 2. Información Gestacional
-  setVal('AD', fmtDate(ficha.fechaIngresoControl));
-  setVal('AE', calcEdadGestacional(materna.fechaEmbarazo, ficha.fechaIngresoControl));
-  setVal('AF', ficha.embarazoDeseado);
-  setVal('AG', ficha.redApoyo);
-  setVal('AH', ficha.tamizajeViolencia);
-  setVal('AI', ficha.tamizajeDepresion);
-  setVal('AJ', ficha.sifilis1Resultado);
-  setVal('AK', fmtDate(ficha.sifilis1Fecha));
-  setVal('AL', ficha.vihResultado);
-  setVal('AM', fmtDate(ficha.vihFecha));
-  setVal('AP', ficha.chagasResultado);
+  // 2. ANTECEDENTES (Bloque AW - BM)
+  const ant = gestante.antecedentes || {};
+  setVal('AW', ant.gestaciones);
+  setVal('AX', ant.partosVaginales);
+  setVal('AY', ant.cesareas);
+  setVal('AZ', ant.vivos);
+  setVal('BA', ant.mortinato);
+  setVal('BB', ant.obito);
+  setVal('BC', ant.aborto);
+  setVal('BD', ant.malformacion);
+  setVal('BE', ant.ectopicos);
+  setVal('BF', ant.otrosEventosObstetricos);
+  setVal('BG', ant.hipertension);
+  setVal('BH', ant.diabetesMellitus);
+  setVal('BI', ant.lupusEritematoso);
+  setVal('BJ', ant.preeclampsia);
+  setVal('BK', ant.eclampsia);
+  setVal('BL', ant.diabetesGestacional);
+  setVal('BM', ant.otrosAntecedentesPersonales);
+  setVal('BN', ant.antecedentesFamiliares);
 
-  setVal('AQ', fmtDate(ficha.fechaUltimaRegla));
-  setVal('AR', calcEdadGestacional(materna.fechaEmbarazo));
-  setVal('AT', fmtDate(ficha.fechaProbableParto));
-  setVal('AU', materna.tipoRiesgo);
-  setVal('AW', ficha.antecedentes);
+  // 3. INGRESO CPN (Bloque Z - BS)
+  const ing = gestante.ingresoCPN || {};
+  setVal('Z', ing.atencionPreconcepcionalPlan);
+  setVal('AA', ing.asesoriaMetodoPrevio);
+  setVal('AB', ing.acidoFolicoPrevio);
+  setVal('AC', ing.citasPreconcepcionales);
+  setVal('AD', fmtDate(ing.fechaInscripcionCPN));
+  setVal('AE', ing.edadGestacionalInicio);
+  setVal('AF', ing.embarazoDeseado);
+  setVal('AG', ing.redApoyo);
+  setVal('AH', ing.tamizajeViolencia);
+  setVal('AI', ing.tamizajeDepresionHerrera);
+  setVal('AQ', fmtDate(ing.fur));
+  setVal('AR', ing.edadGestacionalActual);
+  setVal('AS', ing.edadGestacionalEco);
+  setVal('AT', fmtDate(ing.fpp));
+  setVal('AU', ing.clasificacionRiesgoActual);
+  setVal('AV', ing.diagnosticoARO_Actualizado);
+  setVal('BO', ing.pesoPregestacional_kg);
+  setVal('BP', ing.talla_cm);
+  setVal('BQ', ing.pesoActual_kg);
+  setVal('BR', ing.imc_Gestacional);
+  setVal('BS', ing.clasificacionRiesgoNutricional);
 
-  // 3. Paraclínicos 1er trimestre
-  setVal('CM', ficha.hemoclasificacionResultado);
-  setVal('CN', ficha.hemoglobina1Resultado);
-  setVal('CQ', ficha.glicemiaResultado);
-  setVal('CR', ficha.rubeolaIggResultado);
-  setVal('CS', ficha.toxoplasmaIggResultado);
-  setVal('CW', ficha.urocultivoResultado);
-  setVal('CY', ficha.chagasResultado);
-  setVal('CZ', fmtDate(ficha.eco1Fecha) || fmtDate(ecografias[0]?.fechaRealizada));
-  setVal('DA', ficha.eco1Interpretacion || ecografias[0]?.notas || ecografias[0]?.descripcion);
-
-  // 4. Controles Prenatales
+  // 4. SEGUIMIENTO DE CONTROLES (DF - JY)
+  const controles = (gestante.controles || []).sort((a,b) => (a.numeroControl || 0) - (b.numeroControl || 0));
   const mapControl = (n, ctrl) => {
       if (!ctrl) return;
-      let fFecha, fEsp, fEg, fTa, fRiesgo, fAro, fTalla, fPeso, fImc, fNutr;
-      if (n===1) { fFecha='BU'; fTa='BZ'; fPeso='CF'; fImc='CG'; fNutr='CH'; } 
-      if (n===2) { fFecha='DF'; fEsp='DG'; fEg='DH'; fTa='DI'; fRiesgo='DJ'; fAro='DK'; fTalla='DL'; fPeso='DM'; fImc='DN'; fNutr='DO'; }
-      if (n===3) { fFecha='DV'; fEsp='DW'; fEg='DX'; fTa='DY'; fRiesgo='DZ'; fAro='EA'; fTalla='EB'; fPeso='EC'; fImc='ED'; fNutr='EE'; }
-      if (n===4) { fFecha='EK'; fEsp='EL'; fEg='EM'; fTa='EN'; fRiesgo='EO'; fAro='EP'; fTalla='EQ'; fPeso='ER'; fImc='ES'; fNutr='ET'; }
-      if (n===5) { fFecha='FA'; fEsp='FB'; fEg='FC'; fTa='FD'; fRiesgo='FE'; fAro='FF'; fTalla='FG'; fPeso='FH'; fImc='FI'; fNutr='FJ'; }
-      if (n===6) { fFecha='GI'; fEsp='GJ'; fEg='GK'; fTa='GL'; fRiesgo='GM'; fAro='GO'; fTalla='GP'; fPeso='GQ'; fImc='GR'; fNutr='GS'; }
-      if (n===7) { fFecha='GZ'; fEsp='HA'; fEg='HB'; fTa='HC'; fRiesgo='HD'; fAro='HE'; fTalla='HF'; fPeso='HG'; fImc='HH'; fNutr='HI'; }
-      if (n===8) { fFecha='HO'; fEsp='HP'; fEg='HQ'; fTa='HR'; fRiesgo='HS'; fAro='HT'; fTalla='HU'; fPeso='HV'; fImc='HW'; fNutr='HX'; }
-      if (n===9) { fFecha='IE'; fEsp='IF'; fEg='IG'; fTa='IH'; fRiesgo='II'; fAro='IJ'; fTalla='IK'; fPeso='IL'; fImc='IM'; fNutr='IN'; }
-      if (n===10){ fFecha='IV'; fEsp='IW'; fEg='IX'; fTa='IY'; fRiesgo='IZ'; fAro='JA'; fTalla='JB'; fPeso='JC'; fImc='JD'; fNutr='JE'; }
-      if (n===11){ fFecha='JK'; fEsp='JL'; fEg='JM'; fTa='JN'; fRiesgo='JO'; fAro='JP'; fTalla='JQ'; fPeso='JR'; fImc='JS'; fNutr='JT'; }
+      let fFecha, fEsp, fEg, fTa, fRiesgo, fAro, fTalla, fPeso, fImc, fNutr, fMic, fHierro, fAcido, fCalcio;
+      if (n===1) { fFecha='BU'; fTa='BZ'; fPeso='CF'; fImc='CG'; fNutr='CH'; fMic='CI'; fHierro='CJ'; fAcido='CK'; fCalcio='CL'; }
+      if (n===2) { fFecha='DF'; fEsp='DG'; fEg='DH'; fTa='DI'; fRiesgo='DJ'; fAro='DK'; fTalla='DL'; fPeso='DM'; fImc='DN'; fNutr='DO'; fMic='DP'; fHierro='DQ'; fAcido='DR'; fCalcio='DS'; }
+      if (n===3) { fFecha='DV'; fEsp='DW'; fEg='DX'; fTa='DY'; fRiesgo='DZ'; fAro='EA'; fTalla='EB'; fPeso='EC'; fImc='ED'; fNutr='EE'; fMic='EF'; fHierro='EG'; fAcido='EH'; fCalcio='EI'; }
+      if (n===4) { fFecha='EK'; fEsp='EL'; fEg='EM'; fTa='EN'; fRiesgo='EO'; fAro='EP'; fTalla='EQ'; fPeso='ER'; fImc='ES'; fNutr='ET'; fMic='EU'; fHierro='EV'; fAcido='EW'; fCalcio='EX'; }
+      if (n===5) { fFecha='FA'; fEsp='FB'; fEg='FC'; fTa='FD'; fRiesgo='FE'; fAro='FF'; fTalla='FG'; fPeso='FH'; fImc='FI'; fNutr='FJ'; fMic='FK'; fHierro='FL'; fAcido='FM'; fCalcio='FN'; }
+      if (n===6) { fFecha='GI'; fEsp='GJ'; fEg='GK'; fTa='GL'; fRiesgo='GM'; fAro='GO'; fTalla='GP'; fPeso='GQ'; fImc='GR'; fNutr='GS'; fMic='GT'; fHierro='GU'; fAcido='GV'; fCalcio='GW'; }
+      if (n===7) { fFecha='GZ'; fEsp='HA'; fEg='HB'; fTa='HC'; fRiesgo='HD'; fAro='HE'; fTalla='HF'; fPeso='HG'; fImc='HH'; fNutr='HI'; fMic='HJ'; fHierro='HK'; fAcido='HL'; fCalcio='HM'; }
+      if (n===8) { fFecha='HO'; fEsp='HP'; fEg='HQ'; fTa='HR'; fRiesgo='HS'; fAro='HT'; fTalla='HU'; fPeso='HV'; fImc='HW'; fNutr='HX'; fMic='HY'; fHierro='HZ'; fAcido='IA'; fCalcio='IB'; }
+      if (n===9) { fFecha='IE'; fEsp='IF'; fEg='IG'; fTa='IH'; fRiesgo='II'; fAro='IJ'; fTalla='IK'; fPeso='IL'; fImc='IM'; fNutr='IN'; fMic='IR'; fHierro='IS'; fAcido='IT'; fCalcio='IU'; }
+      if (n===10){ fFecha='IV'; fEsp='IW'; fEg='IX'; fTa='IY'; fRiesgo='IZ'; fAro='JA'; fTalla='JB'; fPeso='JC'; fImc='JD'; fNutr='JE'; fMic='JF'; fHierro='JG'; fAcido='JH'; fCalcio='JI'; }
+      if (n===11){ fFecha='JK'; fEsp='JL'; fEg='JM'; fTa='JN'; fRiesgo='JO'; fAro='JP'; fTalla='JQ'; fPeso='JR'; fImc='JS'; fNutr='JT'; fMic='JU'; fHierro='JV'; fAcido='JW'; fCalcio='JX'; }
 
-      if(fFecha) setVal(fFecha, fmtDate(ctrl.fechaRealizada));
-      if(fEsp) setVal(fEsp, ctrl.prestadores?.map(p=>p.nombre).join(', '));
+      if(fFecha) setVal(fFecha, fmtDate(ctrl.fechaCPN));
+      if(fEsp) setVal(fEsp, ctrl.especialidad);
       if(fEg) setVal(fEg, ctrl.edadGestacional);
       if(fTa) setVal(fTa, ctrl.tensionArterial);
       if(fRiesgo) setVal(fRiesgo, ctrl.riesgoObstetrico);
-      if(fAro) setVal(fAro, ctrl.diagnosticoAro);
-      if(fPeso) setVal(fPeso, ctrl.peso);
+      if(fAro) setVal(fAro, ctrl.diagnosticoARO);
+      if(fTalla) setVal(fTalla, ctrl.talla_cm);
+      if(fPeso) setVal(fPeso, ctrl.peso_kg);
       if(fImc) setVal(fImc, ctrl.imc);
       if(fNutr) setVal(fNutr, ctrl.clasificacionNutricional);
+      if(fMic) setVal(fMic, ctrl.micronutrientesEntrega);
+      if(fHierro) setVal(fHierro, ctrl.hierro);
+      if(fAcido) setVal(fAcido, ctrl.acidoFolico);
+      if(fCalcio) setVal(fCalcio, ctrl.calcio);
   };
   for (let i = 0; i < 11; i++) mapControl(i+1, controles[i]);
 
-  // 5. Paraclínicos 2do trimestre y 3er trimestre
-  setVal('FQ', ficha.hemoglobina2Resultado);
-  setVal('FT', ficha.ptogResultado);
-  setVal('FU', ficha.vihResultado); 
-  setVal('FV', fmtDate(ficha.vihFecha));
-  setVal('FW', ficha.sifilis1Resultado); 
-  setVal('FX', fmtDate(ficha.sifilis1Fecha));
-  setVal('GA', fmtDate(ficha.eco2Fecha));
-  setVal('GB', ficha.eco2Interpretacion);
+  // 5. PARACLÍNICOS (Bloque CM - KK)
+  const par = gestante.paraclinicos || {};
+  setVal('CM', par.hemoclasificacion);
+  setVal('CN', par.hemograma_HB);
+  setVal('CO', par.hemograma_HCTO);
+  setVal('CP', par.hemograma_Plaquetas);
+  setVal('CQ', par.glicemia);
+  setVal('CR', par.igg_Rubeola);
+  setVal('CS', par.igg_Toxoplasma);
+  setVal('CT', par.igm_Toxoplasma);
+  setVal('CU', par.avidezToxoplasma);
+  setVal('CV', par.iga_Toxoplasma);
+  setVal('CW', par.urocultivo);
+  setVal('CZ', fmtDate(par.ecografia1Trimestre));
+  setVal('DA', par.eco1_Interpretacion);
+  setVal('FT', par.ptog_75gr);
+  setVal('FW', par.sifilis_Resultado);
+  setVal('FU', par.vih_Resultado);
+  setVal('GA', fmtDate(par.ecografiaDetalle));
+  setVal('GC', par.citologiaCCU);
+  setVal('KC', par.hemograma3_HB);
+  setVal('KD', par.hemograma3_HCTO);
+  setVal('KE', par.hemograma3_Plaquetas);
+  setVal('KK', par.estreptococoB);
 
-  setVal('GD', ficha.sifilisDiagnostico);
-  setVal('GE', ficha.sifilisSemanasTratamiento);
-  setVal('GF', ficha.sifilisTratamiento);
-  setVal('GG', ficha.sifilisCompleto);
-  setVal('GH', ficha.sifilisContactos);
+  // 6. VACUNACIÓN Y POSPARTO (KO - MJ)
+  const eg = gestante.egresoYPosparto || {};
+  setVal('KO', fmtDate(eg.fechaToxoideTetanico));
+  setVal('KP', fmtDate(eg.fechaTdap));
+  setVal('KQ', fmtDate(eg.fechaInfluenza));
+  setVal('KR', fmtDate(eg.fechaCovid1));
+  setVal('KS', fmtDate(eg.fechaCovid2));
+  setVal('LP', eg.institucionParto);
+  setVal('LQ', eg.eventoObstetrico);
+  setVal('LR', fmtDate(eg.fechaEvento));
+  setVal('LU', eg.edadGestacionalParto);
+  setVal('LW', eg.pesoRN_gr);
+  setVal('LX', eg.tallaRN_cm);
+  setVal('LY', eg.sexoRN);
+  setVal('MA', eg.resultadoTSH_RN);
+  setVal('MH', eg.metodoAnticonceptivoElegido);
+  setVal('MJ', eg.motivoCierreCaso);
 
-  // 6. Vacunas
-  setVal('KO', ficha.toxoideTetanico);
-  setVal('KP', ficha.tdap);
-  setVal('KQ', ficha.influenza);
-  setVal('KR', fmtDate(ficha.covid1Fecha));
-  setVal('KS', fmtDate(ficha.covid2Fecha));
-
-  // 7. Resultado Parto y RN
-  setVal('LM', ficha.presentoMme);
-  setVal('LN', ficha.dxMme);
-  setVal('LO', ficha.zikaGestacion);
-
-  setVal('LP', ficha.institucionParto);
-  setVal('LQ', ficha.eventoObstetrico || ficha.tipoParto);
-  setVal('LR', fmtDate(ficha.fechaParto));
-  setVal('LS', ficha.partoHumanizado);
-  setVal('LT', ficha.lactanciaExclusiva);
-  setVal('LW', ficha.pesoRN);
-  setVal('LX', ficha.tallaRN);
-  setVal('LV', ficha.estadoRecienNacido);
-  setVal('LZ', fmtDate(ficha.tshRnFecha));
-  setVal('MA', ficha.tshRnResultado);
-  setVal('MB', ficha.tamizajeAuditivoRn);
-  setVal('MC', fmtDate(ficha.altaRnFecha));
-  setVal('MD', fmtDate(ficha.consultaRnFecha));
-  setVal('ME', fmtDate(ficha.altaPuerperaFecha));
-  setVal('MF', fmtDate(ficha.consultaPuerperaFecha));
-  setVal('MG', ficha.metodoPostparto);
-  setVal('MH', ficha.metodoElegido);
-  setVal('MI', ficha.entregaMedicamentos);
-  setVal('MJ', ficha.motivoCierre);
+  // 7. SEGUIMIENTOS TELEFÓNICOS (MK - NF)
+  const seguimientos = (gestante.seguimientosTelef || []).sort((a,b) => (a.numeroSeguimiento || 0) - (b.numeroSeguimiento || 0));
+  const mapSeg = (n, seg) => {
+      if (!seg) return;
+      let fFecha, fObs;
+      if (n===1) { fFecha='MK'; fObs='ML'; }
+      if (n===2) { fFecha='MM'; fObs='MN'; }
+      if (n===3) { fFecha='MO'; fObs='MP'; }
+      if (n===4) { fFecha='MQ'; fObs='MR'; }
+      if (n===5) { fFecha='MS'; fObs='MT'; }
+      if (n===6) { fFecha='MU'; fObs='MV'; }
+      if (n===7) { fFecha='MW'; fObs='MX'; }
+      if (n===8) { fFecha='MY'; fObs='MZ'; }
+      if (n===9) { fFecha='NA'; fObs='NB'; }
+      if (n===10){ fFecha='NC'; fObs='ND'; }
+      if (n===11){ fFecha='NE'; fObs='NF'; }
+      if(fFecha) setVal(fFecha, fmtDate(seg.fecha));
+      if(fObs) setVal(fObs, seg.observacion);
+  };
+  for (let i = 0; i < 11; i++) mapSeg(i+1, seguimientos[i]);
 
   return row;
 }
 
-async function generateFomagExcel(maternas) {
+async function generateFomagExcel(gestantes) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Cohorte Materno Perinatal');
 
-  // ─── FORMATO DE ENCABEZADOS ───
-  // Estilo base para encabezados principales
   const headerStyle = {
     font: { bold: true, color: { argb: 'FFFFFFFF' }, size: 9, name: 'Arial' },
     fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } },
@@ -207,14 +219,12 @@ async function generateFomagExcel(maternas) {
     }
   };
 
-  // Ajustamos altura de las filas de encabezado
   sheet.getRow(8).height = 40;
   sheet.getRow(9).height = 30;
   sheet.getRow(10).height = 40;
   sheet.getRow(11).height = 60;
 
   // ─── PARTE 1 DEL MAPA (Fila 8) ───
-  // Individuales
   setHeader('A8', 'CONSECUTIVO');
   setHeader('B8', 'REGION');
   setHeader('C8', 'IPS DE ATENCIÓN');
@@ -236,7 +246,6 @@ async function generateFomagExcel(maternas) {
   setHeader('S8', 'TELEFONO CEL Nº 2');
   setHeader('T8', 'OCUPACION/OFICIO');
 
-  // Combinados
   setHeader('U8', 'ENFOQUE DIFERENCIAL');
   setHeader('Y8', 'CARACTERIZACION DE LA POBLACION GESTANTE');
   setHeader('Z8', 'ETAPA PRECONCEPCIONAL');
@@ -276,7 +285,6 @@ async function generateFomagExcel(maternas) {
   setHeader('LP8', 'INFORMACION POSPARTO-RN', 'MF8');
   setHeader('MG8', 'PLANIFICACION POST EVENTO', 'MJ8');
   
-  // Seguimientos 
   setHeader('MK8', 'SEGUIMIENTO 1', 'ML10');
   setHeader('MM8', 'SEGUIMIENTO 2', 'MN10'); 
   setHeader('MO8', 'SEGUIMIENTO 3', 'MP10');
@@ -333,24 +341,18 @@ async function generateFomagExcel(maternas) {
   setHeader('CF10', 'PESO ACTUAL (kg)');
   setHeader('CG10', 'IMC GESTACIONAL');
   setHeader('CH10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  
-  setHeader('CI10', 'MICRONUTRIENTES', 'CL10'); // Combinado
-  
+  setHeader('CI10', 'MICRONUTRIENTES', 'CL10');
   setHeader('CM10', 'RESULTADO HEMOCLASIFICACION');
-  setHeader('CN10', 'RESULTADO HEMOGRAMA', 'CP10'); // Combinado
+  setHeader('CN10', 'RESULTADO HEMOGRAMA', 'CP10');
   setHeader('CQ10', 'RESULTADO GLICEMIA');
   setHeader('CR10', 'RESULTADO IgG PARA RUBEOLA');
   setHeader('CS10', 'RESULTADO IgG E IgM PARA TOXOPLASMA/IGA Y AVIDEZ (INICIAL)');
   setHeader('CW10', 'UROCULTIVO');
   setHeader('CX10', 'HEMOPARASITOS (GOTA GRUESA) EN ZONA ENDEMICA');
   setHeader('CY10', 'RESULTADO DE CHAGAS (RESIDENCIA O PROCEDENCIA DE GESTANTE)');
-  
   setHeader('CZ10', 'FECHA DE ECOGRAFIA 1 TRIMESTRE');
   setHeader('DA10', 'INTERPRETACION DE LA ECOGRAFIA');
-  
-  setHeader('DB10', 'MICRONUTRIENTES', 'DE10'); // Combinado
-  
-  // SEGUNDO CONTROL PRENATAL (DF-DS)
+  setHeader('DB10', 'MICRONUTRIENTES', 'DE10');
   setHeader('DF10', 'FECHA CPN');
   setHeader('DG10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('DH10', 'EDAD GESTACIONAL');
@@ -361,10 +363,8 @@ async function generateFomagExcel(maternas) {
   setHeader('DM10', 'PESO ACTUAL (kg)');
   setHeader('DN10', 'IMC GESTACIONAL');
   setHeader('DO10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('DP10', 'MICRONUTRIENTES', 'DS10'); // Combinado
+  setHeader('DP10', 'MICRONUTRIENTES', 'DS10');
   setHeader('DT10', 'RESULTADO TOXOPLASMA IGM DE CONTROL MENSUAL');
-  
-  // TERCER CONTROL PRENATAL (DU-EI)
   setHeader('DU10', 'FECHA DE EDUCACION INDIVIDUAL POR ENFERMERIA');
   setHeader('DV10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('DW10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
@@ -376,10 +376,8 @@ async function generateFomagExcel(maternas) {
   setHeader('EC10', 'PESO ACTUAL (kg)');
   setHeader('ED10', 'IMC GESTACIONAL');
   setHeader('EE10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('EF10', 'MICRONUTRIENTES', 'EI10'); // Combinado
+  setHeader('EF10', 'MICRONUTRIENTES', 'EI10');
   setHeader('EJ10', 'RESULTADO TOXOPLASMA IGM DE CONTROL MENSUAL');
-
-  // CUARTO CONTROL PRENATAL (EK-EX)
   setHeader('EK10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('EL10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('EM10', 'EDAD GESTACIONAL');
@@ -390,10 +388,8 @@ async function generateFomagExcel(maternas) {
   setHeader('ER10', 'PESO ACTUAL (kg)');
   setHeader('ES10', 'IMC GESTACIONAL');
   setHeader('ET10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('EU10', 'MICRONUTRIENTES', 'EX10'); // Combinado
+  setHeader('EU10', 'MICRONUTRIENTES', 'EX10');
   setHeader('EY10', 'RESULTADO TOXOPLASMA IGM DE CONTROL MENSUAL');
-
-  // QUINTO CONTROL PRENATAL (EZ-FN)
   setHeader('EZ10', 'FECHA DE EDUCACION INDIVIDUAL POR ENFERMERIA');
   setHeader('FA10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('FB10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
@@ -405,11 +401,9 @@ async function generateFomagExcel(maternas) {
   setHeader('FH10', 'PESO ACTUAL (kg)');
   setHeader('FI10', 'IMC GESTACIONAL');
   setHeader('FJ10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('FK10', 'MICRONUTRIENTES', 'FN10'); // Combinado
+  setHeader('FK10', 'MICRONUTRIENTES', 'FN10');
   setHeader('FO10', 'RESULTADO TOXOPLASMA IGM DE CONTROL MENSUAL');
-
-  // PARACLINICOS SEGUNDO TRIMESTRE
-  setHeader('FQ10', 'HEMOGRAMA', 'FS10'); // Combinado
+  setHeader('FQ10', 'HEMOGRAMA', 'FS10');
   setHeader('FT10', 'RESULTADO PRUEBA DE TOLERANCIA A LA GLUCOSA(PTOG)CON 75 GR DE GLUCOSA');
   setHeader('FU10', 'TAMIZACION Y RESULTADO DE PRUEBA RAPIDA DE VIH');
   setHeader('FV10', 'FECHA DE PRUEBA RAPIDA DE VIH');
@@ -420,15 +414,11 @@ async function generateFomagExcel(maternas) {
   setHeader('GA10', 'FECHA DE LA ECOGRAFIA SEMANA DE DETALLE (18 Y 23 + 6 SEMANAS)');
   setHeader('GB10', 'INTERPRETACION DE LA ECOGRAFIAS');
   setHeader('GC10', 'RESULTADO TAMIZAJE PARA LESIONES PREMALIGNAS DE CERVIX (CCU)');
-
-  // TAMIZAJE DE SIFILIS
   setHeader('GD10', 'DIAGNOSTICO DE SIFILIS');
   setHeader('GE10', 'EDAD GESTACIONAL DE INICIO DE TRATAMIENTO PARA SIFILIS');
   setHeader('GF10', 'TRATAMIENTO');
   setHeader('GG10', 'COMPLETO TRATAMIENTO OPORTUNO EN LA GESTANTE');
   setHeader('GH10', 'NUMERO CONTACTOS SEXUALES TRATADOS OPORTUNAMENTE');
-
-  // SEXTO CONTROL PRENATAL
   setHeader('GI10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('GJ10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('GK10', 'EDAD GESTACIONAL EN SEMANAS');
@@ -440,10 +430,8 @@ async function generateFomagExcel(maternas) {
   setHeader('GQ10', 'PESO ACTUAL (kg)');
   setHeader('GR10', 'IMC GESTACIONAL');
   setHeader('GS10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('GT10', 'MICRONUTRIENTES', 'GW10'); // Combinado
+  setHeader('GT10', 'MICRONUTRIENTES', 'GW10');
   setHeader('GX10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
-
-  // SEPTIMO CONTROL PRENATAL
   setHeader('GY10', 'FECHA DE EDUCACION INDIVIDUAL POR ENFERMERIA');
   setHeader('GZ10', '7 CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('HA10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
@@ -455,10 +443,8 @@ async function generateFomagExcel(maternas) {
   setHeader('HG10', 'PESO ACTUAL (kg)');
   setHeader('HH10', 'IMC GESTACIONAL');
   setHeader('HI10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('HJ10', 'MICRONUTRIENTES', 'HM10'); // Combinado
+  setHeader('HJ10', 'MICRONUTRIENTES', 'HM10');
   setHeader('HN10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
-
-  // OCTAVO CONTROL PRENATAL
   setHeader('HO10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('HP10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('HQ10', 'EDAD GESTACIONAL EN SEMANAS');
@@ -469,10 +455,8 @@ async function generateFomagExcel(maternas) {
   setHeader('HV10', 'PESO ACTUAL (kg)');
   setHeader('HW10', 'IMC GESTACIONAL');
   setHeader('HX10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('HY10', 'MICRONUTRIENTES', 'IB10'); // Combinado
+  setHeader('HY10', 'MICRONUTRIENTES', 'IB10');
   setHeader('IC10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
-
-  // NOVENO CONTROL PRENATAL
   setHeader('ID10', 'FECHA DE EDUCACION INDIVIDUAL POR ENFERMERIA');
   setHeader('IE10', 'FECHA CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('IF10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
@@ -487,9 +471,7 @@ async function generateFomagExcel(maternas) {
   setHeader('IO10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
   setHeader('IP10', 'CLASIFICACION DEL RIESGO TROMBOEMBOLICO SEMANA 28');
   setHeader('IQ10', 'CLASIFICACION DEL RIESGO PSICOSOCIAL DURANTE EL TERCER TRIMESTRE');
-  setHeader('IR10', 'MICRONUTRIENTES', 'IU10'); // Combinado
-
-  // DECIMO CONTROL PRENATAL
+  setHeader('IR10', 'MICRONUTRIENTES', 'IU10');
   setHeader('IV10', '10 CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('IW10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('IX10', 'EDAD GESTACIONAL EN SEMANAS');
@@ -500,10 +482,8 @@ async function generateFomagExcel(maternas) {
   setHeader('JC10', 'PESO ACTUAL (kg)');
   setHeader('JD10', 'IMC GESTACIONAL');
   setHeader('JE10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('JF10', 'MICRONUTRIENTES', 'JI10'); // Combinado
+  setHeader('JF10', 'MICRONUTRIENTES', 'JI10');
   setHeader('JJ10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
-
-  // ONCEAVO CONTROL PRENATAL
   setHeader('JK10', '11 CPN (MEDICO/GINECOOBSTETRA)');
   setHeader('JL10', 'ESPECIALIDAD QUE ATIENDE EL CONTROL PRENATAL');
   setHeader('JM10', 'EDAD GESTACIONAL EN SEMANAS');
@@ -514,22 +494,16 @@ async function generateFomagExcel(maternas) {
   setHeader('JR10', 'PESO ACTUAL (kg)');
   setHeader('JS10', 'IMC GESTACIONAL');
   setHeader('JT10', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  setHeader('JU10', 'MICRONUTRIENTES', 'JX10'); // Combinado
+  setHeader('JU10', 'MICRONUTRIENTES', 'JX10');
   setHeader('JY10', 'RESULTADO TOXOPLASMA IGM MENSUAL');
-
-  // PARACLINICOS TERCER TRIMESTRE
-  setHeader('KC10', 'HEMOGRAMA SEMANA 28', 'KE10'); // Combinado
+  setHeader('KC10', 'HEMOGRAMA SEMANA 28', 'KE10');
   setHeader('KF10', 'HEMOPARASITOS (GOTA GRUESA) EN ZONA ENDEMICA');
   setHeader('KG10', 'TAMIZACION Y RESULTADO DE PRUEBA RAPIDA DE VIH');
   setHeader('KH10', 'FECHA DE RESULTADO VIH');
   setHeader('KI10', 'TAMIZACION Y RESULTADO DE SIFILIS');
   setHeader('KJ10', 'FECHA DE RESULTADO SIFILIS');
   setHeader('KK10', 'TAMIZAJE ESTREPTOCOCO DEL GRUPO B');
-
-  // ASESORIA IVE
   setHeader('KM10', 'VALORACIÓN INTEGRAL ORIENTACIÓN Y ASESORÍA FRENTE A IVE');
-
-  // CURSOS PREPARACION PARA LA MATERNIDAD Y LA PATERNIDAD
   setHeader('KT10', 'FECHA PRIMER ENCUENTRO ANTES DE SEMANA 14');
   setHeader('KU10', 'FECHA SEGUNDO ENCUENTRO Y PREPARACION');
   setHeader('KV10', 'FECHA TERCER ENCUENTRO Y PREPARACION');
@@ -537,19 +511,13 @@ async function generateFomagExcel(maternas) {
   setHeader('KX10', 'FECHA QUINTO ENCUENTRO Y PREPARACION');
   setHeader('KY10', 'FECHA SEXTO ENCUENTRO Y PREPARACION');
   setHeader('KZ10', 'FECHA SEPTIMO ENCUENTRO Y PREPARACION');
-
-  // CONSULTAS
-  setHeader('LA10', 'NUTRICION', 'LC10'); // Combinado
-  setHeader('LD10', 'ODONTOLOGIA', 'LE10'); // Combinado
-  setHeader('LF10', 'PSICOLOGIA', 'LH10'); // Combinado
-  setHeader('LI10', 'TRABAJO SOCIAL', 'LJ10'); // Combinado
-
-  // EVENTOS DE NOTIFICACION Y SEGUIMIENTO
+  setHeader('LA10', 'NUTRICION', 'LC10');
+  setHeader('LD10', 'ODONTOLOGIA', 'LE10');
+  setHeader('LF10', 'PSICOLOGIA', 'LH10');
+  setHeader('LI10', 'TRABAJO SOCIAL', 'LJ10');
   setHeader('LM10', 'PRESENTO MORBILDAD MATERNA EXTREMA');
   setHeader('LN10', 'DX CIE 10 DE MME');
   setHeader('LO10', 'INFECCION POR ZIKA DURANTE LA GESTACION');
-
-  // INFORMACION POSPARTO-RN
   setHeader('LP10', 'INSTITUCION DEL PARTO');
   setHeader('LQ10', 'EVENTO OBSTERICO');
   setHeader('LR10', 'FECHA DEL EVENTO OBSTETRICO');
@@ -557,7 +525,7 @@ async function generateFomagExcel(maternas) {
   setHeader('LT10', 'CONSEJERÌA POSTPARTO SOBRE LACTANCIA MATERNA EXCLUSIVA');
   setHeader('LU10', 'EDAD GESTACIONAL AL MOMENTO DEL PARTO');
   setHeader('LV10', 'RECIEN NACIDO');
-  setHeader('LW10', 'MEDIDAS ANTROPOMETRICAS DEL RECIEN NACIDO', 'LY10'); // Combinado
+  setHeader('LW10', 'MEDIDAS ANTROPOMETRICAS DEL RECIEN NACIDO', 'LY10');
   setHeader('LZ10', 'FECHA DE TSH');
   setHeader('MA10', 'RESULTADO DE TSH');
   setHeader('MB10', 'TAMIZAJE AUDITIVO DEL RECIEN NACIDO');
@@ -565,201 +533,81 @@ async function generateFomagExcel(maternas) {
   setHeader('MD10', 'FECHA DE CONSULTA DEL RECIEN NACIDO POSTERIOR A 5 DIAS DEL ALTA HOSPITALARIA');
   setHeader('ME10', 'FECHA DE ALTA HOSPITALARIA A LA PUERPERA ( PARTO VAGINAL 24 HORAS Y CESAREA 48 HORAS MINIMO)');
   setHeader('MF10', 'FECHA DE CONSULTA DE CONTROL DE LA PUERPERA MENOR A 5 DIAS POST EGRESO');
-
-  // PLANIFICACION POST EVENTO
   setHeader('MG10', 'MUJER POST PARTO O POSTABORTO CON PROVISIÒN MÈTODO ANTICONCEPTIVO ANTES DEL ALTA HOSPITALARIA');
   setHeader('MH10', 'METODO ANTICONCEPTIVO ELEGIDO');
   setHeader('MI10', 'Entrega efectiva de medicamentos antes del egreso hospitalario segun requerimeinto');
   setHeader('MJ10', 'MOTIVO DE CIERRE DE CASO');
 
   // ─── PARTE 3 DEL MAPA (Fila 11) ───
-  setHeader('AW11', 'GESTACIONES');
-  setHeader('AX11', 'PARTOS VAGINALES');
-  setHeader('AY11', 'CESAREA');
-  setHeader('AZ11', 'VIVOS');
-  setHeader('BA11', 'MORTINATO');
-  setHeader('BB11', 'OBITO');
-  setHeader('BC11', 'ABORTO');
-  setHeader('BD11', 'MALFORMACION');
-  setHeader('BE11', 'ECTOPICOS');
-  setHeader('BF11', 'OTROS EVENTOS');
-  
-  setHeader('BG11', 'HIPERTENSION');
-  setHeader('BH11', 'DIABETES MELLITUS');
-  setHeader('BI11', 'LUPUS ERITEMATOSO');
-  setHeader('BJ11', 'PREECLAMPSIA');
-  setHeader('BK11', 'ECLAMPSIA');
-  setHeader('BL11', 'DIABETES GESTACIONAL');
-  setHeader('BM11', 'OTROS');
-  
-  setHeader('BO11', 'PESO PREGESTACIONAL (kg)');
-  setHeader('BP11', 'TALLA (CM)');
-  setHeader('BQ11', 'PESO ACTUAL (kg)');
-  setHeader('BR11', 'IMC GESTACIONAL');
-  setHeader('BS11', 'CLASIFICACION DEL RIESGO NUTRICIONAL');
-  
-  setHeader('CI11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('CJ11', 'HIERRO');
-  setHeader('CK11', 'ACIDO FOLICO');
-  setHeader('CL11', 'CALCIO');
-  
-  setHeader('CN11', 'HB');
-  setHeader('CO11', 'HCTO');
-  setHeader('CP11', 'PLAQUETAS');
-  
-  setHeader('CR11', 'IGG');
-  setHeader('CS11', 'IGG'); 
-  setHeader('CT11', 'IGM');
-  setHeader('CU11', 'PRUEBA DE AVIDEZ (MENOR DE 16 SEM)');
-  setHeader('CV11', 'IgA (MAYOR DE 16 SEM)');
-  
+  setHeader('AW11', 'GESTACIONES'); setHeader('AX11', 'PARTOS VAGINALES'); setHeader('AY11', 'CESAREA');
+  setHeader('AZ11', 'VIVOS'); setHeader('BA11', 'MORTINATO'); setHeader('BB11', 'OBITO');
+  setHeader('BC11', 'ABORTO'); setHeader('BD11', 'MALFORMACION'); setHeader('BE11', 'ECTOPICOS');
+  setHeader('BF11', 'OTROS EVENTOS'); setHeader('BG11', 'HIPERTENSION'); setHeader('BH11', 'DIABETES MELLITUS');
+  setHeader('BI11', 'LUPUS ERITEMATOSO'); setHeader('BJ11', 'PREECLAMPSIA'); setHeader('BK11', 'ECLAMPSIA');
+  setHeader('BL11', 'DIABETES GESTACIONAL'); setHeader('BM11', 'OTROS'); setHeader('BO11', 'PESO PREGESTACIONAL (kg)');
+  setHeader('BP11', 'TALLA (CM)'); setHeader('BQ11', 'PESO ACTUAL (kg)'); setHeader('BR11', 'IMC GESTACIONAL');
+  setHeader('BS11', 'CLASIFICACION DEL RIESGO NUTRICIONAL'); setHeader('CI11', 'ENTREGA DE MICRONUTRIENTES');
+  setHeader('CJ11', 'HIERRO'); setHeader('CK11', 'ACIDO FOLICO'); setHeader('CL11', 'CALCIO');
+  setHeader('CN11', 'HB'); setHeader('CO11', 'HCTO'); setHeader('CP11', 'PLAQUETAS');
+  setHeader('CR11', 'IGG'); setHeader('CS11', 'IGG'); setHeader('CT11', 'IGM');
+  setHeader('CU11', 'PRUEBA DE AVIDEZ (MENOR DE 16 SEM)'); setHeader('CV11', 'IgA (MAYOR DE 16 SEM)');
   setHeader('CZ11', 'ECOGRAFIA SEMANA 10+ 6 DIAS Y 13 SEMANAS+ 6 DIAS(TAMIZAJE DE TRISOMIA 13, 18 Y 21)');
-  
-  setHeader('DB11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('DC11', 'HIERRO');
-  setHeader('DD11', 'ACIDO FOLICO');
-  setHeader('DE11', 'CALCIO');
-  
-  setHeader('DP11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('DQ11', 'HIERRO');
-  setHeader('DR11', 'ACIDO FOLICO');
-  setHeader('DS11', 'CALCIO');
-  
-  setHeader('EF11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('EG11', 'HIERRO');
-  setHeader('EH11', 'ACIDO FOLICO');
-  setHeader('EI11', 'CALCIO');
-  
-  setHeader('EU11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('EV11', 'HIERRO');
-  setHeader('EW11', 'ACIDO FOLICO');
-  setHeader('EX11', 'CALCIO');
-  
-  setHeader('FK11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('FL11', 'HIERRO');
-  setHeader('FM11', 'ACIDO FOLICO');
-  setHeader('FN11', 'CALCIO');
-  
-  setHeader('FQ11', 'HB');
-  setHeader('FR11', 'HTO');
-  setHeader('FS11', 'PLAQUETAS');
-  
-  setHeader('GT11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('GU11', 'HIERRO');
-  setHeader('GV11', 'ACIDO FOLICO');
-  setHeader('GW11', 'CALCIO');
-  
-  setHeader('HJ11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('HK11', 'HIERRO');
-  setHeader('HL11', 'ACIDO FOLICO');
-  setHeader('HM11', 'CALCIO');
-  
-  setHeader('HY11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('HZ11', 'HIERRO');
-  setHeader('IA11', 'ACIDO FOLICO');
-  setHeader('IB11', 'CALCIO');
-  
-  setHeader('IR11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('IS11', 'HIERRO');
-  setHeader('IT11', 'ACIDO FOLICO');
-  setHeader('IU11', 'CALCIO');
-  
-  setHeader('JF11', 'ENTREGA DE MICRONUTRIENTES');
-  setHeader('JG11', 'HIERRO');
-  setHeader('JH11', 'ACIDO FOLICO');
-  setHeader('JI11', 'CALCIO');
-  
-  setHeader('KC11', 'HB');
-  setHeader('KD11', 'HTO');
-  setHeader('KE11', 'PLAQUETAS');
-  
-  setHeader('KK11', 'CULTIVO RECTO-VAGINAL');
-  
-  setHeader('KO11', 'FECHA TOXOIDE TETANICO');
-  setHeader('KP11', 'FECHA TÈTANOS, DIFTERIA Y TOSFERINA ACELULAR');
-  setHeader('KQ11', 'FECHA INFLUENZA ESTACIONAL');
-  setHeader('KR11', 'FECHA COVID-19 PRIMERA DOSIS');
-  setHeader('KS11', 'FECHA COVID-19 SEGUNDA DOSIS');
-  
-  setHeader('LA11', 'PRIMER CONTROL (1ER Y 2DO TRIMESTRE)');
-  setHeader('LB11', 'SEGUNDO CONTROL (3ER TRIMESTRE)');
-  setHeader('LC11', 'TERCER CONTROL');
-  
-  setHeader('LD11', 'PRIMER CONTROL (1 TRIMESTRE)');
-  setHeader('LE11', 'SEGUNDO CONTROL (2 TRIMESTRE)');
-  
-  setHeader('LF11', 'PRIMER CONTROL (1ER Y 2DO TRIMESTRE)');
-  setHeader('LG11', 'SEGUNDO CONTROL (3ER TRIMESTRE)');
-  setHeader('LH11', 'TERCER CONTROL');
-  
-  setHeader('LI11', 'PRIMER CONTROL');
-  setHeader('LJ11', 'SEGUNDO CONTROL');
-  
-  setHeader('LW11', 'PESO');
-  setHeader('LX11', 'TALLA');
-  setHeader('LY11', 'SEXO');
-  
-  setHeader('MK11', 'FECHA');
-  setHeader('ML11', 'OBSERVACIÓN');
-  setHeader('MM11', 'FECHA');
-  setHeader('MN11', 'OBSERVACIÓN');
-  setHeader('MO11', 'FECHA');
-  setHeader('MP11', 'OBSERVACIÓN');
-  setHeader('MQ11', 'FECHA');
-  setHeader('MR11', 'OBSERVACIÓN');
-  setHeader('MS11', 'FECHA');
-  setHeader('MT11', 'OBSERVACIÓN');
-  setHeader('MU11', 'FECHA');
-  setHeader('MV11', 'OBSERVACIÓN');
-  setHeader('MW11', 'FECHA');
-  setHeader('MX11', 'OBSERVACIÓN');
-  setHeader('MY11', 'FECHA');
-  setHeader('MZ11', 'OBSERVACIÓN'); // Corregida la errata de M 11 a MZ11
-  setHeader('NA11', 'FECHA');
-  setHeader('NB11', 'OBSERVACIÓN');
-  setHeader('NC11', 'FECHA');
-  setHeader('ND11', 'OBSERVACIÓN');
-  setHeader('NE11', 'FECHA');
+  setHeader('DB11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('DC11', 'HIERRO'); setHeader('DD11', 'ACIDO FOLICO');
+  setHeader('DE11', 'CALCIO'); setHeader('DP11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('DQ11', 'HIERRO');
+  setHeader('DR11', 'ACIDO FOLICO'); setHeader('DS11', 'CALCIO'); setHeader('EF11', 'ENTREGA DE MICRONUTRIENTES');
+  setHeader('EG11', 'HIERRO'); setHeader('EH11', 'ACIDO FOLICO'); setHeader('EI11', 'CALCIO');
+  setHeader('EU11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('EV11', 'HIERRO'); setHeader('EW11', 'ACIDO FOLICO');
+  setHeader('EX11', 'CALCIO'); setHeader('FK11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('FL11', 'HIERRO');
+  setHeader('FM11', 'ACIDO FOLICO'); setHeader('FN11', 'CALCIO'); setHeader('FQ11', 'HB');
+  setHeader('FR11', 'HTO'); setHeader('FS11', 'PLAQUETAS'); setHeader('GT11', 'ENTREGA DE MICRONUTRIENTES');
+  setHeader('GU11', 'HIERRO'); setHeader('GV11', 'ACIDO FOLICO'); setHeader('GW11', 'CALCIO');
+  setHeader('HJ11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('HK11', 'HIERRO'); setHeader('HL11', 'ACIDO FOLICO');
+  setHeader('HM11', 'CALCIO'); setHeader('HY11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('HZ11', 'HIERRO');
+  setHeader('IA11', 'ACIDO FOLICO'); setHeader('IB11', 'CALCIO'); setHeader('IR11', 'ENTREGA DE MICRONUTRIENTES');
+  setHeader('IS11', 'HIERRO'); setHeader('IT11', 'ACIDO FOLICO'); setHeader('IU11', 'CALCIO');
+  setHeader('JF11', 'ENTREGA DE MICRONUTRIENTES'); setHeader('JG11', 'HIERRO'); setHeader('JH11', 'ACIDO FOLICO');
+  setHeader('JI11', 'CALCIO'); setHeader('KC11', 'HB'); setHeader('KD11', 'HTO');
+  setHeader('KE11', 'PLAQUETAS'); setHeader('KK11', 'CULTIVO RECTO-VAGINAL'); setHeader('KO11', 'FECHA TOXOIDE TETANICO');
+  setHeader('KP11', 'FECHA TÈTANOS, DIFTERIA Y TOSFERINA ACELULAR'); setHeader('KQ11', 'FECHA INFLUENZA ESTACIONAL');
+  setHeader('KR11', 'FECHA COVID-19 PRIMERA DOSIS'); setHeader('KS11', 'FECHA COVID-19 SEGUNDA DOSIS');
+  setHeader('LA11', 'PRIMER CONTROL (1ER Y 2DO TRIMESTRE)'); setHeader('LB11', 'SEGUNDO CONTROL (3ER TRIMESTRE)');
+  setHeader('LC11', 'TERCER CONTROL'); setHeader('LD11', 'PRIMER CONTROL (1 TRIMESTRE)');
+  setHeader('LE11', 'SEGUNDO CONTROL (2 TRIMESTRE)'); setHeader('LF11', 'PRIMER CONTROL (1ER Y 2DO TRIMESTRE)');
+  setHeader('LG11', 'SEGUNDO CONTROL (3ER TRIMESTRE)'); setHeader('LH11', 'TERCER CONTROL');
+  setHeader('LI11', 'PRIMER CONTROL'); setHeader('LJ11', 'SEGUNDO CONTROL');
+  setHeader('LW11', 'PESO'); setHeader('LX11', 'TALLA'); setHeader('LY11', 'SEXO');
+  setHeader('MK11', 'FECHA'); setHeader('ML11', 'OBSERVACIÓN'); setHeader('MM11', 'FECHA');
+  setHeader('MN11', 'OBSERVACIÓN'); setHeader('MO11', 'FECHA'); setHeader('MP11', 'OBSERVACIÓN');
+  setHeader('MQ11', 'FECHA'); setHeader('MR11', 'OBSERVACIÓN'); setHeader('MS11', 'FECHA');
+  setHeader('MT11', 'OBSERVACIÓN'); setHeader('MU11', 'FECHA'); setHeader('MV11', 'OBSERVACIÓN');
+  setHeader('MW11', 'FECHA'); setHeader('MX11', 'OBSERVACIÓN'); setHeader('MY11', 'FECHA');
+  setHeader('MZ11', 'OBSERVACIÓN'); setHeader('NA11', 'FECHA'); setHeader('NB11', 'OBSERVACIÓN');
+  setHeader('NC11', 'FECHA'); setHeader('ND11', 'OBSERVACIÓN'); setHeader('NE11', 'FECHA');
   setHeader('NF11', 'OBSERVACIÓN');
 
-  // Asegurarnos de que TODAS las celdas del bloque de encabezados (Filas 8 a 11) tengan el color de fondo y borde, incluso si quedaron en blanco
   for (let r = 8; r <= 11; r++) {
     const row = sheet.getRow(r);
     for (let c = 1; c <= colToNum('NF'); c++) {
       const cell = row.getCell(c);
-      // Aplicar el estilo si la celda no lo tiene
-      if (!cell.value && (!cell.style || !cell.style.fill)) {
-        cell.style = headerStyle;
-      }
+      if (!cell.value && (!cell.style || !cell.style.fill)) cell.style = headerStyle;
     }
   }
 
-  // ─── AJUSTE DE ANCHO DE COLUMNAS ───
-  // Darle un ancho base de 16 a todas las columnas para que el texto envuelto no quede tan apretado
-  for (let c = 1; c <= colToNum('NF'); c++) {
-    sheet.getColumn(c).width = 18; 
-  }
+  for (let c = 1; c <= colToNum('NF'); c++) sheet.getColumn(c).width = 18; 
+  sheet.getColumn(colToNum('A')).width = 12;
+  sheet.getColumn(colToNum('G')).width = 25;
+  sheet.getColumn(colToNum('H')).width = 25;
+  sheet.getColumn(colToNum('J')).width = 18;
+  sheet.getColumn(colToNum('P')).width = 30;
+  sheet.getColumn(colToNum('AW')).width = 35;
 
-  // Ajustar columnas específicas que requieren más o menos espacio
-  sheet.getColumn(colToNum('A')).width = 12; // Consecutivo
-  sheet.getColumn(colToNum('G')).width = 25; // Nombres
-  sheet.getColumn(colToNum('H')).width = 25; // Apellidos
-  sheet.getColumn(colToNum('J')).width = 18; // Documento
-  sheet.getColumn(colToNum('P')).width = 30; // Dirección
-  sheet.getColumn(colToNum('AW')).width = 35; // Antecedentes
-
-  // Datos empiezan en la fila 12 según el mapa
-  maternas.forEach((materna, index) => {
-    const flat = flattenMaterna(materna, index);
+  gestantes.forEach((gestante, index) => {
+    const flat = flattenGestante(gestante, index);
     const rowValues = [];
-    for (let i = 1; i <= colToNum('NF'); i++) {
-        rowValues[i] = flat[i] || '';
-    }
+    for (let i = 1; i <= colToNum('NF'); i++) rowValues[i] = flat[i] || '';
     const dataRow = sheet.getRow(12 + index);
     dataRow.values = rowValues;
-    dataRow.height = 25; // Dar un poco de altura para el texto envuelto
-
-    // Aplicar bordes y ajuste de texto a cada celda de datos
+    dataRow.height = 25;
     dataRow.eachCell({ includeEmpty: true }, (cell) => {
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFBFBFBF' } },

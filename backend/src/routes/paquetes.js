@@ -56,7 +56,7 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// UPDATE /api/paquetes/:id - Editar paquete (SIN propagación automática a maternas)
+// UPDATE /api/paquetes/:id - Editar paquete
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -73,22 +73,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
         });
         if (!currentPaquete) throw new Error('Paquete no encontrado');
 
-        // Identificar plantillas eliminadas (cast a int para evitar string vs number mismatch)
         const incomingPlantillaIds = plantillas.filter(p => p.id).map(p => parseInt(p.id));
         const plantillasToRemove = currentPaquete.plantillas.filter(p => !incomingPlantillaIds.includes(p.id));
 
-        // Actualizar info básica del paquete
         const updatedPaquete = await tx.paqueteEventos.update({
             where: { id: parseInt(id) },
             data: { nombre, descripcion, trimestre },
         });
 
-        // Eliminar solo las plantillas removidas (NO tocar eventos de maternas)
         for (const p of plantillasToRemove) {
             await tx.plantillaEvento.delete({ where: { id: p.id } });
         }
 
-        // Upsert plantillas (solo en la tabla de plantillas, sin propagar a maternas)
         const processedPlantillas = [];
         for (const pMap of plantillas) {
             const pData = {
@@ -126,22 +122,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/paquetes/check-sync/:maternaId
-// Devuelve los IDs de paquetes que necesitan sincronización para esta materna
-router.get('/check-sync/:maternaId', authMiddleware, async (req, res) => {
+// GET /api/paquetes/check-sync/:gestanteId
+router.get('/check-sync/:gestanteId', authMiddleware, async (req, res) => {
   try {
-    const { maternaId } = req.params;
-    const mid = parseInt(maternaId);
+    const { gestanteId } = req.params;
+    const mid = parseInt(gestanteId);
 
-    // Obtener todos los eventos de la materna que pertenecen a algún paquete
     const eventos = await prisma.eventoMedico.findMany({
-      where: { maternaId: mid, paqueteId: { not: null } },
+      where: { gestanteId: mid, paqueteId: { not: null } },
       select: { paqueteId: true, createdAt: true }
     });
 
     if (eventos.length === 0) return res.json({ desactualizados: [] });
 
-    // Agrupar: para cada paquete, obtener el createdAt más reciente de sus eventos en esta materna
     const mapaFechas = {};
     eventos.forEach(ev => {
       const pid = ev.paqueteId;
@@ -150,14 +143,12 @@ router.get('/check-sync/:maternaId', authMiddleware, async (req, res) => {
       }
     });
 
-    // Obtener los paquetes involucrados con su updatedAt
     const paqueteIds = Object.keys(mapaFechas).map(Number);
     const paquetes = await prisma.paqueteEventos.findMany({
       where: { id: { in: paqueteIds } },
       select: { id: true, updatedAt: true }
     });
 
-    // Comparar: si paquete.updatedAt > createdAt más reciente de eventos → desactualizado
     const desactualizados = paquetes
       .filter(pq => new Date(pq.updatedAt) > new Date(mapaFechas[pq.id]))
       .map(pq => pq.id);
@@ -169,29 +160,31 @@ router.get('/check-sync/:maternaId', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/paquetes/:paqueteId/sincronizar-materna/:maternaId
-// Aplica el estado actual del paquete a UNA materna (reemplaza eventos PENDIENTES del paquete)
-router.post('/:paqueteId/sincronizar-materna/:maternaId', authMiddleware, async (req, res) => {
+// POST /api/paquetes/:paqueteId/sincronizar-materna/:gestanteId
+router.post('/:paqueteId/sincronizar-materna/:gestanteId', authMiddleware, async (req, res) => {
   try {
-    const { paqueteId, maternaId } = req.params;
+    const { paqueteId, gestanteId } = req.params;
 
-    const materna = await prisma.materna.findUnique({ where: { id: parseInt(maternaId) } });
+    const gestante = await prisma.gestante.findUnique({ 
+        where: { id: parseInt(gestanteId) },
+        include: { ingresoCPN: true }
+    });
     const paquete = await prisma.paqueteEventos.findUnique({
       where: { id: parseInt(paqueteId) },
       include: { plantillas: true }
     });
 
-    if (!materna || !paquete) {
+    if (!gestante || !paquete) {
       return res.status(404).json({ error: 'Paciente o paquete no encontrado' });
     }
 
-    const startDate = new Date(materna.fechaEmbarazo);
+    const fur = gestante.ingresoCPN?.fur || gestante.createdAt;
+    const startDate = new Date(fur);
 
     await prisma.$transaction(async (tx) => {
-      // 0. Encontrar eventos que ya no están PENDIENTES (ej. REALIZADO, CANCELADO) de este paquete
       const eventosNoPendientes = await tx.eventoMedico.findMany({
         where: {
-          maternaId: parseInt(maternaId),
+          gestanteId: parseInt(gestanteId),
           paqueteId: parseInt(paqueteId),
           estado: { not: 'PENDIENTE' },
           plantillaId: { not: null }
@@ -200,19 +193,16 @@ router.post('/:paqueteId/sincronizar-materna/:maternaId', authMiddleware, async 
       });
       const plantillasCompletadasIds = eventosNoPendientes.map(e => e.plantillaId);
 
-      // 1. Eliminar eventos PENDIENTES de ese paquete para esa materna
       await tx.eventoMedico.deleteMany({
         where: {
-          maternaId: parseInt(maternaId),
+          gestanteId: parseInt(gestanteId),
           paqueteId: parseInt(paqueteId),
           estado: 'PENDIENTE'
         }
       });
 
-      // 2. Filtrar plantillas que ya tienen un evento completado/cancelado
       const plantillasPendientes = paquete.plantillas.filter(p => !plantillasCompletadasIds.includes(p.id));
 
-      // 3. Recrear desde las plantillas filtradas
       const eventosParaCrear = plantillasPendientes.map(p => {
         const fechaProgramada = new Date(startDate);
         fechaProgramada.setDate(fechaProgramada.getDate() + (p.semanasRelativas * 7));
@@ -227,10 +217,9 @@ router.post('/:paqueteId/sincronizar-materna/:maternaId', authMiddleware, async 
           trimestre: p.trimestre || paquete.trimestre || null,
           paqueteId: paquete.id,
           plantillaId: p.id,
-          maternaId: materna.id,
+          gestanteId: gestante.id,
           estado: 'PENDIENTE',
           estaAgendado: false
-          // semanasRelativas NO se incluye: pertenece a PlantillaEvento, no a EventoMedico
         };
       });
 
@@ -258,25 +247,27 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/maternas/:id/aplicar-paquete/:paqueteId - Aplicar paquete a paciente
-router.post('/aplicar/:paqueteId/materna/:maternaId', authMiddleware, async (req, res) => {
+// POST /api/paquetes/aplicar/:paqueteId/materna/:gestanteId
+router.post('/aplicar/:paqueteId/materna/:gestanteId', authMiddleware, async (req, res) => {
   try {
-    const { maternaId, paqueteId } = req.params;
+    const { gestanteId, paqueteId } = req.params;
 
-    const materna = await prisma.materna.findUnique({ where: { id: parseInt(maternaId) } });
+    const gestante = await prisma.gestante.findUnique({ 
+        where: { id: parseInt(gestanteId) },
+        include: { ingresoCPN: true }
+    });
     const paquete = await prisma.paqueteEventos.findUnique({
       where: { id: parseInt(paqueteId) },
       include: { plantillas: true }
     });
 
-    if (!materna || !paquete) {
+    if (!gestante || !paquete) {
       return res.status(404).json({ error: 'Paciente o paquete no encontrado' });
     }
 
-    // Evitar multiplicar eventos si ya hay algunos creados de este paquete
     const eventosExistentes = await prisma.eventoMedico.findMany({
       where: {
-        maternaId: parseInt(maternaId),
+        gestanteId: parseInt(gestanteId),
         paqueteId: parseInt(paqueteId),
         plantillaId: { not: null },
         estado: { not: 'PENDIENTE' }
@@ -285,7 +276,8 @@ router.post('/aplicar/:paqueteId/materna/:maternaId', authMiddleware, async (req
     });
     const plantillasExistentesIds = eventosExistentes.map(e => e.plantillaId);
 
-    const startDate = new Date(materna.fechaEmbarazo);
+    const fur = gestante.ingresoCPN?.fur || gestante.createdAt;
+    const startDate = new Date(fur);
     const plantillasNuevas = paquete.plantillas.filter(p => !plantillasExistentesIds.includes(p.id));
 
     const eventosParaCrear = plantillasNuevas.map(p => {
@@ -303,7 +295,7 @@ router.post('/aplicar/:paqueteId/materna/:maternaId', authMiddleware, async (req
         trimestre: p.trimestre || paquete.trimestre,
         paqueteId: paquete.id,
         plantillaId: p.id,
-        maternaId: materna.id,
+        gestanteId: gestante.id,
         estado: 'PENDIENTE',
         estaAgendado: false
       };

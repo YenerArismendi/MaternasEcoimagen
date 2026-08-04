@@ -9,24 +9,35 @@ import {
   LogOut, 
   Baby,
   ChevronRight,
-  Layers
+  Layers,
+  Megaphone,
+  Bell
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNotification } from '../context/NotificationContext';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const { config } = useTheme();
+  const { unreadCount, setIsDrawerOpen } = useNotification();
   const navigate = useNavigate();
 
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, admin: false },
-    { name: 'Maternas', path: '/maternas', icon: Baby, admin: false },
-    { name: 'Paquetes', path: '/paquetes', icon: Layers, admin: false },
-    { name: 'Usuarios', path: '/usuarios', icon: Users, admin: true },
-    { name: 'Configuración', path: '/configuracion', icon: Settings, admin: true },
+    { name: 'Dashboard',    path: '/dashboard',     icon: LayoutDashboard, admin: false },
+    { name: 'Maternas',     path: '/maternas',      icon: Baby,            admin: false },
+    { name: 'Paquetes',     path: '/paquetes',      icon: Layers,          admin: false },
+    { name: 'Anuncios',     path: '/anuncios',      icon: Megaphone,       admin: false },
+    { name: 'Usuarios',     path: '/usuarios',      icon: Users,           admin: true },
+    { name: 'Configuración', path: '/configuracion', icon: Settings,       admin: true },
   ];
 
-  const filteredMenu = menuItems.filter(item => !item.admin || user?.rol === 'ADMIN');
+  let filteredMenu = menuItems.filter(item => !item.admin || user?.rol === 'ADMIN');
+  if (user?.rol === 'GESTANTE') {
+    const portalPath = user?.gestanteId ? `/maternas/${user.gestanteId}` : '/maternas';
+    filteredMenu = [
+      { name: 'Mi Portal de Salud', path: portalPath, icon: Baby, admin: false }
+    ];
+  }
 
   return (
     <aside style={{
@@ -55,7 +66,35 @@ const Sidebar = () => {
         </div>
         <h1 style={{ fontSize: '1.4rem', fontWeight: '950', letterSpacing: '-1px', color: 'var(--text-main)' }}>{config.clinicName}</h1>
       </div>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '3.5rem', marginLeft: '50px' }}>Ecoimagen salud</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '2rem', marginLeft: '50px' }}>Ecoimagen salud</p>
+
+      {/* Botón Centro de Notificaciones */}
+      <button
+        onClick={() => setIsDrawerOpen(prev => !prev)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 18px', borderRadius: '18px',
+          background: 'linear-gradient(135deg, #fff5f8 0%, #fce7f3 100%)',
+          border: '1.5px solid #fbcfe8', cursor: 'pointer',
+          marginBottom: '1.5rem', width: '100%',
+          boxShadow: '0 4px 12px rgba(236,72,153,0.08)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#be185d', fontWeight: '950', fontSize: '0.88rem' }}>
+          <Bell size={20} />
+          <span>Avisos y Alertas</span>
+        </div>
+        {unreadCount > 0 ? (
+          <span style={{
+            background: '#ef4444', color: '#ffffff', fontSize: '0.75rem', fontWeight: '950',
+            padding: '2px 8px', borderRadius: '12px', boxShadow: '0 2px 6px rgba(239,68,68,0.4)'
+          }}>
+            {unreadCount}
+          </span>
+        ) : (
+          <span style={{ color: '#9d174d', fontSize: '0.75rem', fontWeight: '800' }}>0</span>
+        )}
+      </button>
 
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredMenu.map((item) => (

@@ -12,9 +12,20 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const { config } = useTheme();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (user) {
+      if (user.rol === 'GESTANTE') {
+        const dest = user.gestanteId ? `/maternas/${user.gestanteId}` : '/maternas';
+        navigate(dest, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,12 +33,10 @@ const Login = () => {
     setLoading(true);
 
     const result = await login(email, password);
-    if (result.success) {
-      navigate('/dashboard');
-    } else {
+    if (!result.success) {
       setError(result.error);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -201,7 +210,7 @@ const Login = () => {
               padding: '18px', 
               fontSize: '1.1rem', 
               fontWeight: '900',
-              marginTop: '1.5rem',
+              marginTop: '1rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -216,7 +225,16 @@ const Login = () => {
           </motion.button>
         </form>
 
-        <p style={{ marginTop: '3rem', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+        <div style={{ marginTop: '2rem', padding: '12px 16px', background: '#fce7f3', borderRadius: '16px', border: '1px solid #fbcfe8', textAlign: 'left' }}>
+          <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: '950', color: '#be185d' }}>
+            🌸 ¿Eres paciente gestante del programa?
+          </p>
+          <p style={{ margin: '3px 0 0', fontSize: '0.74rem', color: '#831843', fontWeight: '700' }}>
+            Ingresa con tu correo <strong>tuDocumento@maternas.com</strong> y tu contraseña inicial (tu número de documento).
+          </p>
+        </div>
+
+        <p style={{ marginTop: '2rem', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
           © {new Date().getFullYear()} {config.clinicName}
         </p>
       </motion.div>

@@ -14,31 +14,214 @@ model User {
   password  String
   rol       String    @default("ENFERMERA")
   activo    Boolean   @default(true)
-  maternas  Materna[]
+  gestantes Gestante[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
 
-model Materna {
+model Gestante {
+  id                    Int      @id @default(autoincrement())
+  consecutivo           String?  // A8
+  region                String?  // B8
+  ipsAtencion           String?  // C8
+  codigoHabilitacionIPS String?  // D8
+  departamento          String?  // E8
+  municipio             String?  // F8
+  nombres               String   // G8
+  apellidos             String   // H8
+  tipoIdentificacion    String   // I8
+  numeroIdentificacion  String   @unique // J8
+  estadoCivil           String?  // K8
+  fechaNacimiento       DateTime // L8
+  edadActual            String?  // M8
+  escolaridad           String?  // N8
+  municipioResidencia   String?  // O8
+  direccion             String?  // P8
+  barrio                String?  // Q8
+  telefonoCel1          String?  // R8
+  telefonoCel2          String?  // S8
+  ocupacionOficio       String?  // T8
+  enfoqueDiferencial    String?  // U8
+  etnia                 String?  // U10
+  identidadGenero       String?  // V10
+  discapacidad          String?  // W10
+  victimaViolencia      String?  // X10
+  caracterizacionPoblacion String? // Y8
+  tipoRiesgo            String?  // AU10
+
+  // Relaciones
+  creadaPorId           Int
+  creadaPor             User                @relation(fields: [creadaPorId], references: [id])
+  antecedentes          AntecedenteClinico?
+  ingresoCPN            IngresoCPN?
+  controles             SeguimientoControl[]
+  paraclinicos          Paraclinico?
+  egresoYPosparto       EgresoYPosparto?
+  seguimientosTelef     SeguimientoTelefonico[]
+  eventos               EventoMedico[]      // Mantener para el calendario flexible
+  carpetaEntregada      String?             @default("NO")
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model AntecedenteClinico {
   id              Int      @id @default(autoincrement())
-  nombre          String
-  documento       String   @unique
-  tipoDocumento   String
-  fechaNacimiento DateTime
-  fechaEmbarazo   DateTime
-  fechaRegistro   DateTime @default(now())
-  tipoRiesgo      String   // BAJA, MEDIANA, ALTA
-  alertas         String?
-  telefono        String?
-  direccion       String?
-  contactoEmergencia String?
-  creadaPorId     Int
-  creadaPor       User             @relation(fields: [creadaPorId], references: [id])
-  eventos         EventoMedico[]
-  carpetaEntregada Boolean          @default(false)
-  fichaFomag      FichaFomag?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  gestanteId      Int      @unique
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+  
+  // Ginecobstétricos
+  gestaciones     String?  // AW11
+  partosVaginales String?  // AX11
+  cesareas        String?  // AY11
+  vivos           String?  // AZ11
+  mortinato       String?  // BA11
+  obito           String?  // BB11
+  aborto          String?  // BC11
+  malformacion    String?  // BD11
+  ectopicos       String?  // BE11
+  otrosEventosObstetricos String? // BF11
+  
+  // Personales
+  hipertension    String? // BG11
+  diabetesMellitus String? // BH11
+  lupusEritematoso String? // BI11
+  preeclampsia    String? // BJ11
+  eclampsia       String? // BK11
+  diabetesGestacional String? // BL11
+  otrosAntecedentesPersonales String? // BM11
+  antecedentesFamiliares String? // BN8
+}
+
+model IngresoCPN {
+  id              Int      @id @default(autoincrement())
+  gestanteId      Int      @unique
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+
+  // Etapa Preconcepcional
+  atencionPreconcepcionalPlan String? // Z10
+  asesoriaMetodoPrevio        String? // AA10
+  acidoFolicoPrevio           String? // AB10
+  citasPreconcepcionales      String? // AC10
+
+  // Inscripción
+  fechaInscripcionCPN         DateTime? // AD10
+  edadGestacionalInicio       String?   // AE10
+  embarazoDeseado             String?  // AF10
+  redApoyo                    String?  // AG10
+  tamizajeViolencia           String?  // AH10
+  tamizajeDepresionHerrera    String?   // AI10
+  fur                         DateTime? // AQ10
+  edadGestacionalActual       String?   // AR10
+  edadGestacionalEco          String?   // AS10
+  fpp                         DateTime? // AT10
+  clasificacionRiesgoActual   String?   // AU10
+  diagnosticoARO_Actualizado  String?   // AV10
+
+  // Medidas Antropométricas
+  pesoPregestacional_kg       String?    // BO11
+  talla_cm                    String?    // BP11
+  pesoActual_kg               String?    // BQ11
+  imc_Gestacional             String?    // BR11
+  clasificacionRiesgoNutricional String? // BS11
+}
+
+model SeguimientoControl {
+  id              Int      @id @default(autoincrement())
+  gestanteId      Int
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+  numeroControl   Int?     // 1 al 11
+  fechaCPN        DateTime?
+  especialidad    String?
+  edadGestacional String?
+  tensionArterial String?
+  riesgoObstetrico String?
+  diagnosticoARO  String?
+  talla_cm        String?
+  peso_kg         String?
+  imc             String?
+  clasificacionNutricional String?
+  micronutrientesEntrega   String?
+  hierro                  String?
+  acidoFolico             String?
+  calcio                  String?
+  toxoplasmaIgMControl    String?
+  fechaEducacionEnfermeria DateTime?
+
+  @@unique([gestanteId, numeroControl])
+}
+
+model Paraclinico {
+  id              Int      @id @default(autoincrement())
+  gestanteId      Int      @unique
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+  
+  // 1er Trimestre
+  hemoclasificacion   String?  // CM10
+  hemograma_HB        String?  // CN11
+  hemograma_HCTO      String?  // CO11
+  hemograma_Plaquetas String?  // CP11
+  glicemia            String?  // CQ10
+  igg_Rubeola         String?  // CR11
+  igg_Toxoplasma      String?  // CS11
+  igm_Toxoplasma      String?  // CT11
+  avidezToxoplasma    String?  // CU11
+  iga_Toxoplasma      String?  // CV11
+  urocultivo          String?  // CW10
+  ecografia1Trimestre DateTime? // CZ10
+  eco1_Interpretacion String?  // DA10
+  vih_Resultado       String?  // AL10
+  vih_Fecha           DateTime? // AM10
+
+  // 2do Trimestre
+  ptog_75gr           String?  // FT10
+  sifilis_Resultado   String?  // FW10
+  ecografiaDetalle    DateTime? // GA10
+  citologiaCCU        String?  // GC10
+
+  // 3er Trimestre
+  hemograma3_HB       String?   // KC11
+  hemograma3_HCTO     String?   // KD11
+  hemograma3_Plaquetas String?  // KE11
+  estreptococoB       String?  // KK11
+}
+
+model EgresoYPosparto {
+  id              Int      @id @default(autoincrement())
+  gestanteId      Int      @unique
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+
+  // Vacunas
+  fechaToxoideTetanico DateTime? // KO11
+  fechaTdap           DateTime? // KP11
+  fechaInfluenza       DateTime? // KQ11
+  fechaCovid1          DateTime? // KR11
+  fechaCovid2          DateTime? // KS11
+
+  // Datos Parto/RN
+  institucionParto     String?  // LP10
+  eventoObstetrico     String?  // LQ10
+  fechaParto           DateTime? // LR10 (Mismo que fechaEvento)
+  fechaEvento          DateTime? // LR10
+  edadGestacionalParto String?  // LU10
+  estadoRecienNacido   String?  // LV10
+  pesoRN_gr            String?  // LW11
+  tallaRN_cm           String?  // LX11
+  sexoRN               String?  // LY11
+  resultadoTSH_RN      String?  // MA10
+  metodoAnticonceptivoElegido String? // MH10
+  motivoCierreCaso     String?  // MJ10
+}
+
+model SeguimientoTelefonico {
+  id              Int      @id @default(autoincrement())
+  gestanteId      Int
+  gestante        Gestante @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+  numeroSeguimiento Int?     // 1 al 11
+  fecha           DateTime? // MK11...
+  observacion     String?   // ML11...
+
+  @@unique([gestanteId, numeroSeguimiento])
 }
 
 model EventoMedico {
@@ -61,26 +244,10 @@ model EventoMedico {
   paqueteId       Int?
   plantillaId     Int?
   plantilla       PlantillaEvento? @relation(fields: [plantillaId], references: [id], onDelete: SetNull)
-  // Variables clínicas FOMAG para controles
-  tensionArterial         String?  // ej: "120/80"
-  peso                    Float?   // kg
-  clasificacionNutricional String? // NORMAL, BP, SP, OB1, OB2
-  alturaUterina           Float?   // cm
-  frecuenciaCardiacaFetal Int?     // lpm
-  edadGestacional         Int?     // Semanas
-  riesgoObstetrico        String?
-  diagnosticoAro          String?
-  riesgoPsicosocial       String?
-  atributoRiesgoPsicosocial String?
-  imc                     Float?
-  prescripcionAsa         String?
-  riesgoTromboembolico    String?
-  riesgoHipertension      String?
-  riesgoPreeclampsia      String?
-  toxoplasmaIgmControl    String?
-  hemoparasitosControl    String?
-  maternaId       Int
-  materna         Materna  @relation(fields: [maternaId], references: [id], onDelete: Cascade)
+  
+  gestanteId      Int
+  gestante        Gestante  @relation(fields: [gestanteId], references: [id], onDelete: Cascade)
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -127,135 +294,4 @@ model ThemeConfig {
   darkMode        Boolean @default(false)
   clinicName      String  @default("Clínica Maternas")
   logoUrl         String?
-}
-
-// ─── FOMAG Cohorte Materno Perinatal ──────────────────────────────────────
-
-model FichaFomag {
-  id                    Int       @id @default(autoincrement())
-  maternaId             Int       @unique
-  materna               Materna   @relation(fields: [maternaId], references: [id], onDelete: Cascade)
-
-  // Ubicación e identificación FOMAG
-  regional              String?   // 1-10
-  departamento          String?
-  municipio             String?
-  ips                   String?
-  correo                String?
-
-  // Características sociodemográficas (enums FOMAG)
-  grupoEtnico           String?   // MESTIZO, AFRO, INDIGENA, RAIZAL, ROM, NORESP
-  nivelEducativo        String?   // T=Técnico, E=Escolar, U=Universitario, O=Otro
-  ocupacion             String?
-  regimen               String?   // CONTRIBUTIVO, SUBSIDIADO, VINCULADO, ESPECIAL
-  tipoVinculacion       String?   // AFILIADO, BENEFICIARIO
-  etnia                 String?
-  identidadGenero       String?
-  discapacidad          String?
-  victimaViolencia      String?
-  embarazoDeseado       String?
-  redApoyo              String?
-  tamizajeViolencia     String?
-  tamizajeDepresion     String?
-
-  // Preconcepcionales
-  atencionPreconcepcional String?
-  asesoriaAnticonceptivo  String?
-  acidoFolicoPrevio       String?
-  citasPreconcepcionales  Int?
-
-  // Información gestacional adicional
-  fechaUltimaRegla      DateTime?
-  fechaProbableParto    DateTime?
-  fechaIngresoControl   DateTime?
-  antecedentes          String?
-
-  // Micronutrientes
-  hierroCantidad        String?
-  hierroFecha           DateTime?
-  acidoFolicoCantidad   String?
-  acidoFolicoFecha      DateTime?
-  calcioCantidad        String?
-  calcioFecha           DateTime?
-
-  // Laboratorios FOMAG
-  hemoglobina1Fecha            DateTime?
-  hemoglobina1Resultado        String?
-  hemoglobina2Fecha            DateTime?
-  hemoglobina2Resultado        String?
-  hemoclasificacionFecha       DateTime?
-  hemoclasificacionResultado   String?
-  serologiaFecha               DateTime?
-  serologiaResultado           String?
-  vihFecha                     DateTime?
-  vihResultado                 String?
-  glicemiaFecha                DateTime?
-  glicemiaResultado            String?
-  urocultivoFecha              DateTime?
-  urocultivoResultado          String?
-  frotisFecha                  DateTime?
-  frotisResultado              String?
-  toxoplasmaIggFecha           DateTime?
-  toxoplasmaIggResultado       String?
-  toxoplasmaIgmFecha           DateTime?
-  toxoplasmaIgmResultado       String?
-  sifilis1Fecha                DateTime?
-  sifilis1Resultado            String?
-  chagasFecha                  DateTime?
-  chagasResultado              String?
-  ptogResultado                String?
-  rubeolaIggResultado          String?
-  
-  // Ecografías
-  eco1Fecha                    DateTime?
-  eco1Interpretacion           String?
-  eco2Fecha                    DateTime?
-  eco2Interpretacion           String?
-  eco3Fecha                    DateTime?
-  eco3Interpretacion           String?
-
-  // Tratamientos Sifilis
-  sifilisDiagnostico           String?
-  sifilisSemanasTratamiento    Int?
-  sifilisTratamiento           String?
-  sifilisCompleto              String?
-  sifilisContactos             Int?
-
-  // Vacunas
-  toxoideTetanico       String?   // Fecha o dosis aplicada
-  tdap                  String?
-  influenza             String?
-  covid1Fecha           DateTime?
-  covid2Fecha           DateTime?
-
-  // Resultado final del embarazo
-  fechaParto            DateTime?
-  tipoParto             String?   // EUTOCICO, CESAREA, INSTRUMENTADO, ABORTO
-  estadoRecienNacido    String?   // VIVO, MUERTO
-  pesoRN                Float?    // gramos
-  tallaRN               Float?    // centímetros
-  apgar                 String?   // ej: "8/9"
-  
-  // Postparto y Recién Nacido FOMAG
-  presentoMme             String?
-  dxMme                   String?
-  zikaGestacion           String?
-  institucionParto        String?
-  eventoObstetrico        String?
-  partoHumanizado         String?
-  lactanciaExclusiva      String?
-  tshRnFecha              DateTime?
-  tshRnResultado          String?
-  tamizajeAuditivoRn      String?
-  altaRnFecha             DateTime?
-  consultaRnFecha         DateTime?
-  altaPuerperaFecha       DateTime?
-  consultaPuerperaFecha   DateTime?
-  metodoPostparto         String?
-  metodoElegido           String?
-  entregaMedicamentos     String?
-  motivoCierre            String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
 }

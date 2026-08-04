@@ -13,6 +13,7 @@ import ThemeConfig from './pages/ThemeConfig';
 import Maternas from './pages/Maternas';
 import MaternaDetail from './pages/MaternaDetail';
 import Paquetes from './pages/Paquetes';
+import Anuncios from './pages/Anuncios';
 
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationSystem from './components/NotificationSystem';
@@ -20,10 +21,10 @@ import NotificationSystem from './components/NotificationSystem';
 function App() {
   return (
     <NotificationProvider>
-      <NotificationSystem />
       <AuthProvider>
         <ThemeProvider>
           <BrowserRouter>
+            <NotificationSystem />
             <Routes>
               <Route path="/" element={<Login />} />
 
@@ -33,6 +34,7 @@ function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/maternas" element={<Maternas />} />
                   <Route path="/maternas/:id" element={<MaternaDetail />} />
+                  <Route path="/anuncios" element={<Anuncios />} />
                 </Route>
               </Route>
 

@@ -5,12 +5,12 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// GET /api/maternas/:id/eventos - obtener eventos de una materna
+// GET /api/maternas/:id/eventos - obtener eventos de una gestante
 router.get('/materna/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const eventos = await prisma.eventoMedico.findMany({
-      where: { maternaId: parseInt(id) },
+      where: { gestanteId: parseInt(id) },
       include: { prestadores: true },
       orderBy: { fechaProgramada: 'asc' },
     });
@@ -29,21 +29,18 @@ router.post('/', authMiddleware, async (req, res) => {
       descripcion, 
       fechaProgramada, 
       esObligatorio, 
-      maternaId,
+      maternaId, // Mantenemos el nombre del campo que envía el frontend por ahora
       notas,
       codigoCUPS,
       prestadoresIds,
       esControl,
       resultado,
-      trimestre,
-      tensionArterial,
-      peso,
-      clasificacionNutricional,
-      alturaUterina,
-      frecuenciaCardiacaFetal
+      trimestre
     } = req.body;
 
-    if (!tipo || !descripcion || !fechaProgramada || !maternaId) {
+    const gId = maternaId || req.body.gestanteId;
+
+    if (!tipo || !descripcion || !fechaProgramada || !gId) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
@@ -56,14 +53,9 @@ router.post('/', authMiddleware, async (req, res) => {
         esControl: !!esControl,
         resultado,
         codigoCUPS,
-        maternaId: parseInt(maternaId),
+        gestanteId: parseInt(gId),
         notas,
         trimestre,
-        tensionArterial,
-        peso: peso ? parseFloat(peso) : null,
-        clasificacionNutricional,
-        alturaUterina: alturaUterina ? parseFloat(alturaUterina) : null,
-        frecuenciaCardiacaFetal: frecuenciaCardiacaFetal ? parseInt(frecuenciaCardiacaFetal) : null,
         estado: 'PENDIENTE',
         estaAgendado: false,
         prestadores: (prestadoresIds && prestadoresIds.length > 0) ? {
@@ -80,15 +72,14 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /api/eventos/:id - actualizar evento (ej. marcar como realizado)
+// PATCH /api/eventos/:id - actualizar evento
 router.patch('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { 
       estado, fechaRealizada, notas, fechaProgramada, descripcion, codigoCUPS, 
       prestadoresIds, esControl, resultado, estaAgendado, fechaAgendamiento, 
-      trimestre, tensionArterial, peso, clasificacionNutricional, 
-      alturaUterina, frecuenciaCardiacaFetal 
+      trimestre
     } = req.body;
 
     const data = {};
@@ -101,16 +92,10 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     if (esControl !== undefined) data.esControl = !!esControl;
     if (resultado !== undefined) data.resultado = resultado;
     if (estaAgendado !== undefined) data.estaAgendado = !!estaAgendado;
-    // fechaAgendamiento puede ser null (para limpiarla) o una fecha válida
     if (fechaAgendamiento !== undefined) {
       data.fechaAgendamiento = fechaAgendamiento ? new Date(fechaAgendamiento) : null;
     }
     if (trimestre !== undefined) data.trimestre = trimestre;
-    if (tensionArterial !== undefined) data.tensionArterial = tensionArterial;
-    if (peso !== undefined) data.peso = peso ? parseFloat(peso) : null;
-    if (clasificacionNutricional !== undefined) data.clasificacionNutricional = clasificacionNutricional;
-    if (alturaUterina !== undefined) data.alturaUterina = alturaUterina ? parseFloat(alturaUterina) : null;
-    if (frecuenciaCardiacaFetal !== undefined) data.frecuenciaCardiacaFetal = frecuenciaCardiacaFetal ? parseInt(frecuenciaCardiacaFetal) : null;
 
     if (prestadoresIds) {
       data.prestadores = {
@@ -118,7 +103,6 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       };
     }
 
-    // Si se marca como REALIZADO y no hay fechaRealizada, poner hoy
     if (estado === 'REALIZADO' && !fechaRealizada) {
       data.fechaRealizada = new Date();
     }
@@ -127,6 +111,9 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       where: { id: parseInt(id) },
       data
     });
+
+    // Lógica especial: Si es un control y se marca como realizado, podríamos crear un registro en SeguimientoControl
+    // Pero por ahora dejaremos que el frontend o una ruta específica maneje los controles detallados.
 
     res.json(evento);
   } catch (err) {
@@ -174,57 +161,54 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
 router.post('/materna/:id/generar-basicos', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const materna = await prisma.materna.findUnique({
-      where: { id: parseInt(id) }
+    const gestante = await prisma.gestante.findUnique({
+      where: { id: parseInt(id) },
+      include: { ingresoCPN: true }
     });
 
-    if (!materna) {
+    if (!gestante) {
       return res.status(404).json({ error: 'Paciente no encontrada' });
     }
 
-    const startDate = new Date(materna.fechaEmbarazo);
+    const fur = gestante.ingresoCPN?.fur || gestante.createdAt;
+    const startDate = new Date(fur);
     const basicEvents = [];
 
-    // 1. Controles Prenatales (cada 4 semanas hasta la semana 36, luego cada semana)
-    // Para simplificar, generaremos 10 controles estándar
     for (let i = 1; i <= 10; i++) {
         const date = new Date(startDate);
-        date.setDate(date.getDate() + (i * 28)); // Aprox cada mes
+        date.setDate(date.getDate() + (i * 28)); 
         basicEvents.push({
             tipo: 'CITA',
-            descripcion: i === 0 ? 'Primera Vez Control Prenatal' : `Control Prenatal #${i}`,
+            descripcion: i === 1 ? 'Primera Vez Control Prenatal' : `Control Prenatal #${i}`,
             fechaProgramada: date,
             esObligatorio: true,
-            esControl: i > 0, // La primera vez no suele ser un "re-control"
-            maternaId: materna.id,
+            esControl: true,
+            gestanteId: gestante.id,
             estado: 'PENDIENTE',
             estaAgendado: false
         });
     }
 
-    // 2. Ecografías
-    const eco1 = new Date(startDate); eco1.setDate(eco1.getDate() + (12 * 7)); // Sem 12
-    const eco2 = new Date(startDate); eco2.setDate(eco2.getDate() + (22 * 7)); // Sem 22
-    const eco3 = new Date(startDate); eco3.setDate(eco3.getDate() + (32 * 7)); // Sem 32
+    const eco1 = new Date(startDate); eco1.setDate(eco1.getDate() + (12 * 7)); 
+    const eco2 = new Date(startDate); eco2.setDate(eco2.getDate() + (22 * 7)); 
+    const eco3 = new Date(startDate); eco3.setDate(eco3.getDate() + (32 * 7)); 
 
     basicEvents.push(
-        { tipo: 'ESTUDIO', descripcion: 'Ecografía de Tamizaje (Sem 11-14)', fechaProgramada: eco1, esObligatorio: true, maternaId: materna.id, estaAgendado: false },
-        { tipo: 'ESTUDIO', descripcion: 'Ecografía Detalle Anatómico (Sem 20-24)', fechaProgramada: eco2, esObligatorio: true, maternaId: materna.id, estaAgendado: false },
-        { tipo: 'ESTUDIO', descripcion: 'Ecografía de Crecimiento (Sem 32+)', fechaProgramada: eco3, esObligatorio: true, maternaId: materna.id, estaAgendado: false }
+        { tipo: 'ESTUDIO', descripcion: 'Ecografía de Tamizaje (Sem 11-14)', fechaProgramada: eco1, esObligatorio: true, gestanteId: gestante.id, estaAgendado: false },
+        { tipo: 'ESTUDIO', descripcion: 'Ecografía Detalle Anatómico (Sem 20-24)', fechaProgramada: eco2, esObligatorio: true, gestanteId: gestante.id, estaAgendado: false },
+        { tipo: 'ESTUDIO', descripcion: 'Ecografía de Crecimiento (Sem 32+)', fechaProgramada: eco3, esObligatorio: true, gestanteId: gestante.id, estaAgendado: false }
     );
 
-    // 3. Laboratorios
-    const lab1 = new Date(startDate); lab1.setDate(lab1.getDate() + 7); // Inmediato
-    const lab2 = new Date(startDate); lab2.setDate(lab2.getDate() + (24 * 7)); // Sem 24 (Glucosa)
-    const lab3 = new Date(startDate); lab3.setDate(lab3.getDate() + (35 * 7)); // Sem 35
+    const lab1 = new Date(startDate); lab1.setDate(lab1.getDate() + 7); 
+    const lab2 = new Date(startDate); lab2.setDate(lab2.getDate() + (24 * 7)); 
+    const lab3 = new Date(startDate); lab3.setDate(lab3.getDate() + (35 * 7)); 
 
     basicEvents.push(
-        { tipo: 'LABORATORIO', descripcion: 'Laboratorios 1er Trimestre', fechaProgramada: lab1, esObligatorio: true, maternaId: materna.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '1er Trimestre' },
-        { tipo: 'LABORATORIO', descripcion: 'Prueba de Tolerancia a la Glucosa', fechaProgramada: lab2, esObligatorio: true, maternaId: materna.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '2do Trimestre' },
-        { tipo: 'LABORATORIO', descripcion: 'Laboratorios 3er Trimestre', fechaProgramada: lab3, esObligatorio: true, maternaId: materna.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '3er Trimestre' }
+        { tipo: 'LABORATORIO', descripcion: 'Laboratorios 1er Trimestre', fechaProgramada: lab1, esObligatorio: true, gestanteId: gestante.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '1er Trimestre' },
+        { tipo: 'LABORATORIO', descripcion: 'Prueba de Tolerancia a la Glucosa', fechaProgramada: lab2, esObligatorio: true, gestanteId: gestante.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '2do Trimestre' },
+        { tipo: 'LABORATORIO', descripcion: 'Laboratorios 3er Trimestre', fechaProgramada: lab3, esObligatorio: true, gestanteId: gestante.id, estado: 'PENDIENTE', estaAgendado: false, trimestre: '3er Trimestre' }
     );
 
-    // Crear todos los eventos
     const created = await prisma.eventoMedico.createMany({
         data: basicEvents
     });

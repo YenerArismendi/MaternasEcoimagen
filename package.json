@@ -7,8 +7,10 @@
   ],
   "scripts": {
     "build": "npm run build --workspace=frontend",
-    "start": "npm start --workspace=backend",
-    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
-    "seed": "npm run db:seed --workspace=backend"
+    "start": "cd backend-go && ~/.local/go/bin/go run cmd/server/main.go",
+    "dev": "cd backend-go && ~/.local/go/bin/go run cmd/server/main.go & npm run dev --workspace=frontend",
+    "seed": "cd backend-go && ~/.local/go/bin/go run cmd/server/main.go",
+    "mcp:index": "PATH=\"$HOME/.local/bin:$PATH\" codebase-memory-mcp cli index_repository --repo-path .",
+    "mcp:ui": "PATH=\"$HOME/.local/bin:$PATH\" codebase-memory-mcp --ui=true"
   }
 }
