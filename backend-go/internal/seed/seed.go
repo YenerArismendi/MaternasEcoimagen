@@ -53,10 +53,37 @@ func SeedDatabase(db *gorm.DB) {
 	// 3. Paquetes y Plantillas
 	seedPaquetes(db)
 
-	// 4. Crear cuentas de usuario para gestantes existentes sin cuenta
-	seedGestanteUsers(db)
+	// 5. Parámetros iniciales de laboratorios
+	seedLabParams(db)
 
 	fmt.Println("🎉 Seed completado exitosamente!")
+}
+
+func seedLabParams(db *gorm.DB) {
+	var count int64
+	db.Model(&models.LabParam{}).Count(&count)
+	if count == 0 {
+		fmt.Println("🔬 Creando parámetros iniciales de laboratorios...")
+		defaultLabs := []models.LabParam{
+			{Nombre: "Hemoglobina", CodigoCampo: "hemoglobina", TipoEval: "NUMERICO", Unidad: "g/dL", MinVal: 11.0, MaxVal: 14.0, Aliases: "HEMOGLOBINA, HB", Activo: true},
+			{Nombre: "Hematocrito", CodigoCampo: "hematocrito", TipoEval: "NUMERICO", Unidad: "%", MinVal: 33.0, MaxVal: 44.0, Aliases: "HEMATOCRITO, HTO", Activo: true},
+			{Nombre: "Plaquetas", CodigoCampo: "plaquetas", TipoEval: "NUMERICO", Unidad: "/mm3", MinVal: 150000.0, MaxVal: 450000.0, Aliases: "PLAQUETAS, RECUENTO DE PLAQUETAS", Activo: true},
+			{Nombre: "Glicemia en Ayunas", CodigoCampo: "glicemiaEnAyunas", TipoEval: "NUMERICO", Unidad: "mg/dL", MinVal: 70.0, MaxVal: 92.0, Aliases: "GLICEMIA, GLUCOSA EN AYUNAS", Activo: true},
+			{Nombre: "PTOG 75g", CodigoCampo: "ptog75g", TipoEval: "NUMERICO", Unidad: "mg/dL", MinVal: 0.0, MaxVal: 140.0, Aliases: "PTOG, TOLERANCIA A LA GLUCOSA", Activo: true},
+			{Nombre: "VDRL / Sífilis", CodigoCampo: "vdrlSifilis", TipoEval: "CUALITATIVO", TerminosNormal: "No Reactiva, No Reactivo, Negativo, Negativa", TerminosAnormal: "Reactiva, Reactivo, Positivo, Positiva", Aliases: "SEROLOGIA VDRL, VDRL, SIFILIS", Activo: true},
+			{Nombre: "VIH 1/2", CodigoCampo: "vih", TipoEval: "CUALITATIVO", TerminosNormal: "Negativo, Negativa, No Reactivo, No Reactiva", TerminosAnormal: "Positivo, Positiva, Reactivo, Reactiva", Aliases: "HIV 1/2 ANTICUERPOS, HIV 1/2, VIH 1/2, VIH, HIV", Activo: true},
+			{Nombre: "Hepatitis B (HBsAg)", CodigoCampo: "hepatitisB", TipoEval: "CUALITATIVO", TerminosNormal: "No Reactivo, No Reactiva, Negativo, Negativa", TerminosAnormal: "Reactivo, Reactiva, Positivo, Positiva", Aliases: "HEPATITIS B, HBSAG, ANTIGENO DE SUPERFICIE", Activo: true},
+			{Nombre: "Toxoplasma IgM", CodigoCampo: "toxoplasmaIgM", TipoEval: "INDICE", Unidad: "Index", MinVal: 0.80, MaxVal: 1.00, TerminosNormal: "Negativo, No Reactivo", TerminosAnormal: "Positivo, Reactivo", Aliases: "TOXOPLASMA IGM, TOXO IGM, TOXOPLASMOSIS IGM", Activo: true},
+			{Nombre: "Toxoplasma IgG", CodigoCampo: "toxoplasmaIgG", TipoEval: "INDICE", Unidad: "UI/mL", MinVal: 1.00, MaxVal: 3.00, TerminosNormal: "Negativo, No Reactivo", TerminosAnormal: "Positivo, Reactivo", Aliases: "TOXOPLASMA IGG, TOXO IGG, TOXOPLASMOSIS IGG", Activo: true},
+			{Nombre: "Estreptococo Grupo B", CodigoCampo: "estreptococoGrupoB", TipoEval: "CUALITATIVO", TerminosNormal: "Negativo, No Se Aisla", TerminosAnormal: "Positivo, Aislado", Aliases: "ESTREPTOCOCO, STGB, STREPTOCOCCUS AGALACTIAE", Activo: true},
+			{Nombre: "Urocultivo", CodigoCampo: "urocultivo", TipoEval: "CUALITATIVO", TerminosNormal: "Negativo, Sin Germen", TerminosAnormal: "Positivo, Aislamiento", Aliases: "UROCULTIVO", Activo: true},
+		}
+
+		for _, lab := range defaultLabs {
+			db.Create(&lab)
+		}
+		fmt.Println("✅ Parámetros iniciales de laboratorios sembrados.")
+	}
 }
 
 func seedGestanteUsers(db *gorm.DB) {

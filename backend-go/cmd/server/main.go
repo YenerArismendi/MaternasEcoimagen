@@ -97,6 +97,15 @@ func main() {
 			auth.GET("/fomag/export/excel/:gestanteId", handlers.ExportFomagSingle)
 			auth.POST("/fomag/import", handlers.ImportFomag)
 
+			// Procesamiento y Extracción de PDFs Clínicos / Laboratorios
+			auth.POST("/pdf/extract", handlers.ProcessMaternalPDFHandler)
+			auth.GET("/pdf/config", handlers.GetPDFConfigHandler)
+			auth.PUT("/pdf/config", handlers.UpdatePDFConfigHandler)
+			auth.GET("/pdf/labs", handlers.GetLabParamsHandler)
+			auth.POST("/pdf/labs", handlers.CreateLabParamHandler)
+			auth.PUT("/pdf/labs/:id", handlers.UpdateLabParamHandler)
+			auth.DELETE("/pdf/labs/:id", handlers.DeleteLabParamHandler)
+
 			// Prestadores
 			auth.GET("/prestadores", handlers.GetPrestadores)
 			auth.POST("/prestadores", handlers.CreatePrestador)

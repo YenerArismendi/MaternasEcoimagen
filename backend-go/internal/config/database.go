@@ -77,6 +77,8 @@ func InitDB() *gorm.DB {
 		&models.ThemeConfig{},
 		&models.Anuncio{},
 		&models.AnuncioParticipacion{},
+		&models.PDFExtractorConfig{},
+		&models.LabParam{},
 	)
 	if err != nil {
 		log.Fatalf("❌ Error en AutoMigrate de GORM: %v", err)

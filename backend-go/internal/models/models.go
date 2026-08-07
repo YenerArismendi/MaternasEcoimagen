@@ -350,3 +350,55 @@ type AnuncioParticipacion struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+// ─── Configuración de Parámetros Extractor PDF (Administrable) ───────────────────
+
+type PDFExtractorConfig struct {
+	ID                 uint      `gorm:"primaryKey" json:"id"`
+	HemoglobinaMin     float64   `gorm:"default:11.0" json:"hemoglobinaMin"`
+	HemoglobinaMax     float64   `gorm:"default:14.0" json:"hemoglobinaMax"`
+	HematocritoMin     float64   `gorm:"default:33.0" json:"hematocritoMin"`
+	HematocritoMax     float64   `gorm:"default:44.0" json:"hematocritoMax"`
+	PlaquetasMin       float64   `gorm:"default:150000.0" json:"plaquetasMin"`
+	PlaquetasMax       float64   `gorm:"default:450000.0" json:"plaquetasMax"`
+	GlicemiaMin        float64   `gorm:"default:70.0" json:"glicemiaMin"`
+	GlicemiaMax        float64   `gorm:"default:92.0" json:"glicemiaMax"`
+	PtogMax            float64   `gorm:"default:140.0" json:"ptogMax"`
+	
+	// Parámetros Serología y Pruebas Especiales
+	ToxoplasmaIgMLimiteNegativo float64 `gorm:"default:0.80" json:"toxoplasmaIgMLimiteNegativo"`
+	ToxoplasmaIgMLimitePositivo float64 `gorm:"default:1.00" json:"toxoplasmaIgMLimitePositivo"`
+	ToxoplasmaIgGLimiteNegativo float64 `gorm:"default:1.00" json:"toxoplasmaIgGLimiteNegativo"`
+	ToxoplasmaIgGLimitePositivo float64 `gorm:"default:3.00" json:"toxoplasmaIgGLimitePositivo"`
+	
+	// Palabras clave y Alias de Búsqueda para Exámenes
+	AliasToxoplasmaIgM string    `gorm:"default:'TOXOPLASMA IGM,TOXO IGM,TOXOPLASMOSIS IGM'" json:"aliasToxoplasmaIgM"`
+	AliasToxoplasmaIgG string    `gorm:"default:'TOXOPLASMA IGG,TOXO IGG,TOXOPLASMOSIS IGG'" json:"aliasToxoplasmaIgG"`
+	AliasHepatitisB    string    `gorm:"default:'HEPATITIS B,HBSAG,ANTIGENO DE SUPERFICIE'" json:"aliasHepatitisB"`
+	AliasVDRL          string    `gorm:"default:'VDRL,SIFILIS,SEROLOGIA'" json:"aliasVDRL"`
+	AliasVIH           string    `gorm:"default:'VIH,HIV,VIH 1/2'" json:"aliasVIH"`
+
+	SeccionEvolucion   string    `gorm:"default:'EVOLUCIÓN,EVOLUCION CLINICA,NOTAS DE EVOLUCION'" json:"seccionEvolucion"`
+	SeccionDiagnostico string    `gorm:"default:'DIAGNÓSTICO,DIAGNOSTICO,IMPRESIÓN DIAGNÓSTICA'" json:"seccionDiagnostico"`
+	SeccionPlan        string    `gorm:"default:'PLAN DE MANEJO,PLAN DE TRATAMIENTO,CONDUCTA'" json:"seccionPlan"`
+	SeccionMotivo      string    `gorm:"default:'MOTIVO DE CONSULTA,MOTIVO CONSULTA'" json:"seccionMotivo"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+}
+
+// ─── Parámetro Dinámico de Laboratorio Individual ──────────────────────────────
+
+type LabParam struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	Nombre          string    `gorm:"not null" json:"nombre"`              // Ej: "Rubéola IgG"
+	CodigoCampo     string    `gorm:"not null;unique" json:"codigoCampo"` // Ej: "rubeolaIgG"
+	TipoEval        string    `gorm:"default:'CUALITATIVO'" json:"tipoEval"` // NUMERICO | CUALITATIVO | INDICE
+	Unidad          string    `json:"unidad"`                              // Ej: "g/dL", "mg/dL", "Index", "UI/mL"
+	MinVal          float64   `json:"minVal"`                              // Min o Límite Negativo
+	MaxVal          float64   `json:"maxVal"`                              // Max o Límite Positivo
+	TerminosNormal  string    `json:"terminosNormal"`                      // Ej: "No Reactivo, Negativo, Normal"
+	TerminosAnormal string    `json:"terminosAnormal"`                     // Ej: "Reactivo, Positivo, Anormal"
+	Aliases         string    `json:"aliases"`                             // Ej: "RUBEOLA, RUBEOLA IGG, RUB"
+	Activo          bool      `gorm:"default:true" json:"activo"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+

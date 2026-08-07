@@ -23,6 +23,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { calculateMaternaAlerts } from '../utils/alertUtils';
+import PDFExtractionModal from '../components/PDFExtractionModal';
 
 const Maternas = () => {
   const { user } = useAuth();
@@ -37,6 +38,7 @@ const Maternas = () => {
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState(null);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     nombres: '',
@@ -316,6 +318,12 @@ const Maternas = () => {
             <FileSpreadsheet size={18} /> <span className="btn-text">Exportar FOMAG</span>
           </motion.button>
           
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setPdfModalOpen(true)}
+            style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: 'white', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', borderRadius: '16px', fontSize: '0.9rem', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)' }}
+          >
+            <Folder size={18} /> <span className="btn-text">Escanear PDF</span>
+          </motion.button>
+
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={(e) => handleOpenModal(e)}
             style={{ background: 'var(--primary-color)', color: 'white', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', borderRadius: '16px', fontSize: '0.9rem', border: 'none', cursor: 'pointer' }}
           >
@@ -611,6 +619,14 @@ const Maternas = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <PDFExtractionModal 
+        isOpen={pdfModalOpen} 
+        onClose={() => setPdfModalOpen(false)} 
+        onApplyData={(data) => {
+          notify('Datos extraídos del PDF. Por favor selecciona o abre la gestante correspondiente para vincularlos.', 'info');
+        }} 
+      />
     </>
   );
 };

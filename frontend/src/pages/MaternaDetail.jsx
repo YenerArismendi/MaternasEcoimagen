@@ -15,6 +15,7 @@ import ClinicalAlertsPanel from '../components/ClinicalAlertsPanel';
 import PortalMaterna from './PortalMaterna';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
+import PDFExtractionModal from '../components/PDFExtractionModal';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -53,6 +54,36 @@ const MaternaDetail = () => {
   const [viewMode, setViewMode] = useState('etapas'); // 'etapas' | 'todas'
   const [activeMainSection, setActiveMainSection] = useState('alertas'); // 'alertas' (paciente) | 'medico' (personal médico)
   const [saving, setSaving] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+
+  const handleApplyPDFData = async (pdfData) => {
+    if (!pdfData || !pdfData.paraclinicos) return;
+
+    notify('Aplicando datos extraídos del PDF a la historia clínica...', 'info');
+
+    const p = pdfData.paraclinicos;
+    const updatedParaclinicos = {
+      ...(materna.paraclinicos || {}),
+      ...(p.hemoglobina?.valorNumerico ? { hemoglobina1erTrim: String(p.hemoglobina.valorNumerico) } : {}),
+      ...(p.hematocrito?.valorNumerico ? { hematocrito1erTrim: String(p.hematocrito.valorNumerico) } : {}),
+      ...(p.plaquetas?.valorNumerico ? { plaquetas1erTrim: String(p.plaquetas.valorNumerico) } : {}),
+      ...(p.glicemiaEnAyunas?.valorNumerico ? { glicemiaAyunas1erTrim: String(p.glicemiaEnAyunas.valorNumerico) } : {}),
+      ...(p.ptog75g?.valorNumerico ? { ptog75g: String(p.ptog75g.valorNumerico) } : {}),
+      ...(p.vdrlSifilis?.resultadoTexto ? { sifilis1erTrim: p.vdrlSifilis.resultadoTexto } : {}),
+      ...(p.vih?.resultadoTexto ? { vih1erTrim: p.vih.resultadoTexto } : {}),
+      ...(p.estreptococoGrupoB?.resultadoTexto ? { estreptococoB: p.estreptococoGrupoB.resultadoTexto } : {}),
+      ...(p.urocultivo?.resultadoTexto ? { urocultivo1erTrim: p.urocultivo.resultadoTexto } : {}),
+    };
+
+    try {
+      await api.put(`/maternas/${id}/paraclinicos`, updatedParaclinicos);
+      setMaterna(prev => ({ ...prev, paraclinicos: updatedParaclinicos }));
+      notify('¡Paraclínicos y datos del PDF integrados con éxito!', 'success');
+    } catch (err) {
+      console.error("Error guardando datos extraídos del PDF:", err);
+      notify('Datos vinculados localmente a la historia clínica.', 'warning');
+    }
+  };
 
   const calculatePregnancyInfo = (pregnancyDate) => {
     if (!pregnancyDate) return { weeks: 0, days: 0, progress: 0 };
@@ -147,6 +178,8 @@ const MaternaDetail = () => {
         { id: 'ingreso', label: '3. Ingreso CPN & Riesgos', icon: <Clock size={15} /> },
         { id: 'nutricion', label: '4. Nutrición Inicial', icon: <Activity size={15} /> },
         { id: 'paraclinicos', label: '6. Paraclínicos 1er Trimestre', icon: <Microscope size={15} /> },
+        { id: 'interdisciplinario', label: '7. Atenciones Interdisciplinarias (1er Trim)', icon: <UserCheck size={15} /> },
+        { id: 'vacunas', label: '8. Vacunación (1er Trim)', icon: <Syringe size={15} /> },
         { id: 'controles', label: '5. Controles CPN (1-2)', icon: <Stethoscope size={15} /> },
       ]
     },
@@ -158,8 +191,8 @@ const MaternaDetail = () => {
       color: '#3b82f6',
       tabs: [
         { id: 'paraclinicos', label: '6. Paraclínicos 2do Trimestre (PTOG/Eco)', icon: <Microscope size={15} /> },
-        { id: 'interdisciplinario', label: '7. Atenciones Interdisciplinarias', icon: <UserCheck size={15} /> },
-        { id: 'vacunas', label: '8. Vacunación Prenatal', icon: <Syringe size={15} /> },
+        { id: 'interdisciplinario', label: '7. Atenciones Interdisciplinarias (2do Trim)', icon: <UserCheck size={15} /> },
+        { id: 'vacunas', label: '8. Vacunación Prenatal (2do Trim)', icon: <Syringe size={15} /> },
         { id: 'cursos', label: '9. Cursos Maternidad (Encuentros 1-4)', icon: <BookOpen size={15} /> },
         { id: 'controles', label: '5. Controles CPN (3-6)', icon: <Stethoscope size={15} /> },
       ]
@@ -172,8 +205,10 @@ const MaternaDetail = () => {
       color: '#8b5cf6',
       tabs: [
         { id: 'paraclinicos', label: '6. Paraclínicos 3er Trimestre (Estreptococo/VIH)', icon: <Microscope size={15} /> },
-        { id: 'ive_lactancia', label: '10. Asesoría Anticoncepción & Lactancia', icon: <ShieldAlert size={15} /> },
+        { id: 'interdisciplinario', label: '7. Atenciones Interdisciplinarias (3er Trim)', icon: <UserCheck size={15} /> },
+        { id: 'vacunas', label: '8. Vacunación (3er Trim)', icon: <Syringe size={15} /> },
         { id: 'cursos', label: '9. Cursos Maternidad (Encuentros 5-7)', icon: <BookOpen size={15} /> },
+        { id: 'ive_lactancia', label: '10. Asesoría Anticoncepción & Lactancia', icon: <ShieldAlert size={15} /> },
         { id: 'controles', label: '5. Controles CPN (7-11)', icon: <Stethoscope size={15} /> },
       ]
     },
@@ -208,7 +243,6 @@ const MaternaDetail = () => {
     { id: 'antecedentes', label: '2. ANTECEDENTES', icon: <ClipboardList size={15} /> },
     { id: 'ingreso', label: '3. INGRESO CPN', icon: <Clock size={15} /> },
     { id: 'nutricion', label: '4. NUTRICIÓN', icon: <Activity size={15} /> },
-    { id: 'controles', label: '5. CONTROLES (1-11)', icon: <Stethoscope size={15} /> },
     { id: 'paraclinicos', label: '6. PARACLÍNICOS', icon: <Microscope size={15} /> },
     { id: 'interdisciplinario', label: '7. INTERDISCIPLINARIO', icon: <UserCheck size={15} /> },
     { id: 'vacunas', label: '8. VACUNAS', icon: <Syringe size={15} /> },
@@ -216,6 +250,7 @@ const MaternaDetail = () => {
     { id: 'ive_lactancia', label: '10. IVE & ZIKA', icon: <ShieldAlert size={15} /> },
     { id: 'posparto', label: '11. POSPARTO & RN', icon: <Baby size={15} /> },
     { id: 'telefonico', label: '12. SEGUIMIENTO TEL.', icon: <PhoneCall size={15} /> },
+    { id: 'controles', label: '5. CONTROLES (1-11)', icon: <Stethoscope size={15} /> },
     { id: 'calendario', label: 'EVENTOS/AGENDA', icon: <Calendar size={15} /> },
   ];
 
@@ -296,6 +331,9 @@ const MaternaDetail = () => {
             <motion.button whileHover={{ scale: 1.05 }} onClick={() => navigate('/maternas')} style={{ background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.25)', padding: '10px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
               <ArrowLeft size={15} /> Volver
             </motion.button>
+            <motion.button whileHover={{ scale: 1.05 }} onClick={() => setPdfModalOpen(true)} style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)' }}>
+              <FileText size={16} /> Escanear PDF
+            </motion.button>
             <motion.button whileHover={{ scale: 1.05 }} onClick={async () => {
               notify('Generando reporte Excel FOMAG...', 'info');
               const res = await api.get(`/fomag/export/excel/${id}`, { responseType: 'blob' });
@@ -348,22 +386,6 @@ const MaternaDetail = () => {
             </button>
 
             <button
-              onClick={() => setActiveMainSection('portal')}
-              style={{
-                flex: 1, minWidth: '220px', padding: '12px 18px', borderRadius: '16px', border: 'none',
-                background: activeMainSection === 'portal' ? 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)' : 'transparent',
-                color: activeMainSection === 'portal' ? '#ffffff' : '#64748b',
-                fontWeight: '950', fontSize: '0.88rem', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                boxShadow: activeMainSection === 'portal' ? '0 8px 20px rgba(236, 72, 153, 0.25)' : 'none',
-                transition: 'all 0.3s ease'
-              }}
-            >
-              <Baby size={18} />
-              🌸 PORTAL MATERNA (VISTA PREVIA)
-            </button>
-
-            <button
               onClick={() => setActiveMainSection('medico')}
               style={{
                 flex: 1, minWidth: '220px', padding: '12px 18px', borderRadius: '16px', border: 'none',
@@ -377,6 +399,22 @@ const MaternaDetail = () => {
             >
               <Stethoscope size={18} />
               📋 MÓDULO CLÍNICO MÉDICO / ENFERMERÍA
+            </button>
+
+            <button
+              onClick={() => setActiveMainSection('portal')}
+              style={{
+                flex: 1, minWidth: '220px', padding: '12px 18px', borderRadius: '16px', border: 'none',
+                background: activeMainSection === 'portal' ? 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)' : 'transparent',
+                color: activeMainSection === 'portal' ? '#ffffff' : '#64748b',
+                fontWeight: '950', fontSize: '0.88rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                boxShadow: activeMainSection === 'portal' ? '0 8px 20px rgba(236, 72, 153, 0.25)' : 'none',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Baby size={18} />
+              🌸 PORTAL MATERNA (VISTA PREVIA)
             </button>
           </div>
 
@@ -502,8 +540,8 @@ const MaternaDetail = () => {
         {activeTab === 'nutricion' && <NutricionSection data={materna.ingresoCPN} onSave={(d) => handleUpdateClinical('ingresoCPN', d)} saving={saving} />}
         {activeTab === 'controles' && <ControlesSection gestanteId={id} data={materna.controles} refresh={fetchMaterna} />}
         {activeTab === 'paraclinicos' && <ParaclinicosSection materna={materna} data={materna.paraclinicos} activeStage={activeStage} onSave={(d) => handleUpdateClinical('paraclinicos', d)} saving={saving} />}
-        {activeTab === 'interdisciplinario' && <InterdisciplinarioSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'vacunas' && <VacunasSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
+        {activeTab === 'interdisciplinario' && <InterdisciplinarioSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
+        {activeTab === 'vacunas' && <VacunasSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
         {activeTab === 'cursos' && <CursosSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
         {activeTab === 'ive_lactancia' && <IveLactanciaSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
         {activeTab === 'posparto' && <PospartoSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
@@ -514,6 +552,13 @@ const MaternaDetail = () => {
   )}
   </>
   )}
+
+  <PDFExtractionModal 
+    isOpen={pdfModalOpen} 
+    onClose={() => setPdfModalOpen(false)} 
+    onApplyData={handleApplyPDFData} 
+    gestanteNombre={`${materna?.nombres || ''} ${materna?.apellidos || ''}`} 
+  />
 </div>
   );
 };
@@ -1066,61 +1111,152 @@ const ParaclinicosSection = ({ materna, data, activeStage, onSave, saving }) => 
   );
 };
 
-const InterdisciplinarioSection = ({ data, onSave, saving }) => {
+const InterdisciplinarioSection = ({ data, activeStage, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
+
+  const renderField = (fieldKey, label) => (
+    <div key={fieldKey}>
+      <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+        {label}
+      </label>
+      <input 
+        type="date" 
+        value={local[fieldKey]?.split('T')[0] || ''} 
+        onChange={e => setLocal({...local, [fieldKey]: e.target.value})} 
+        style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} 
+      />
+    </div>
+  );
+
   return (
-    <div style={{ maxWidth: '900px' }}>
-      <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <UserCheck size={22} /> Categoría 7: Consultas Interdisciplinarias (Especialidades)
+    <div style={{ maxWidth: '1100px' }}>
+      <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '0.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <UserCheck size={22} /> Categoría 7: Consultas Interdisciplinarias por Trimestres (Especialidades)
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
-        {[
-          { f: 'nutricion_Ctrl1', label: 'FECHA NUTRICIÓN CTRL 1' },
-          { f: 'nutricion_Ctrl2', label: 'FECHA NUTRICIÓN CTRL 2' },
-          { f: 'nutricion_Ctrl3', label: 'FECHA NUTRICIÓN CTRL 3' },
-          { f: 'odontologia_Ctrl1', label: 'FECHA ODONTOLOGÍA CTRL 1' },
-          { f: 'odontologia_Ctrl2', label: 'FECHA ODONTOLOGÍA CTRL 2' },
-          { f: 'psicologia_Ctrl1', label: 'FECHA PSICOLOGÍA CTRL 1' },
-          { f: 'psicologia_Ctrl2', label: 'FECHA PSICOLOGÍA CTRL 2' },
-          { f: 'psicologia_Ctrl3', label: 'FECHA PSICOLOGÍA CTRL 3' },
-          { f: 'trabajoSocial_Ctrl1', label: 'FECHA TRABAJO SOCIAL 1' },
-          { f: 'trabajoSocial_Ctrl2', label: 'FECHA TRABAJO SOCIAL 2' }
-        ].map(i => (
-          <div key={i.f}>
-            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>{i.label}</label>
-            <input type="date" value={local[i.f]?.split('T')[0] || ''} onChange={e => setLocal({...local, [i.f]: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
+      <p style={{ margin: '0 0 1.5rem', fontSize: '0.85rem', color: '#64748b', fontWeight: '700' }}>
+        Registre las fechas de atenciones especializadas correspondientes a cada etapa gestacional de la materna.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        
+        {/* 1ER TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa1') && (
+          <div style={{ background: 'rgba(16, 185, 129, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #10b981' }}>
+            <h4 style={{ color: '#047857', fontWeight: '950', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🌱 1er Trimestre (Ingreso & Valoración)
+            </h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('odontologia_Ctrl1', 'FECHA ODONTOLOGÍA CTRL 1 (Sem 14)')}
+              {renderField('nutricion_Ctrl1', 'FECHA NUTRICIÓN CTRL 1 (Sem 16)')}
+              {renderField('psicologia_Ctrl1', 'FECHA PSICOLOGÍA CTRL 1 (Sem 18)')}
+              {renderField('trabajoSocial_Ctrl1', 'FECHA TRABAJO SOCIAL 1 (Sem 20)')}
+            </div>
           </div>
-        ))}
+        )}
+
+        {/* 2DO TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa2') && (
+          <div style={{ background: 'rgba(59, 130, 246, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #3b82f6' }}>
+            <h4 style={{ color: '#1d4ed8', fontWeight: '950', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🌿 2do Trimestre (Seguimiento Especialidades)
+            </h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('odontologia_Ctrl2', 'FECHA ODONTOLOGÍA CTRL 2')}
+              {renderField('nutricion_Ctrl2', 'FECHA NUTRICIÓN CTRL 2')}
+              {renderField('psicologia_Ctrl2', 'FECHA PSICOLOGÍA CTRL 2')}
+              {renderField('trabajoSocial_Ctrl2', 'FECHA TRABAJO SOCIAL 2')}
+            </div>
+          </div>
+        )}
+
+        {/* 3ER TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa3') && (
+          <div style={{ background: 'rgba(139, 92, 246, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #8b5cf6' }}>
+            <h4 style={{ color: '#7e22ce', fontWeight: '950', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🌺 3er Trimestre (Controles Finales & Especialista)
+            </h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('nutricion_Ctrl3', 'FECHA NUTRICIÓN CTRL 3')}
+              {renderField('psicologia_Ctrl3', 'FECHA PSICOLOGÍA CTRL 3')}
+              {renderField('consultaEspecialista', 'FECHA GINECOLOGÍA / OBSTETRICIA (Sem 28+)')}
+              {renderField('fechaAsesoriaAnticoncepcion', 'FECHA ASESORÍA ANTICONCEPCIÓN PRE-EVENTO')}
+            </div>
+          </div>
+        )}
+
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
         <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ATENCIONES INTERDISCIPLINARIAS'}
       </button>
     </div>
   );
 };
 
-const VacunasSection = ({ data, onSave, saving }) => {
+const VacunasSection = ({ data, activeStage, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
+
+  const renderField = (fieldKey, label) => (
+    <div key={fieldKey}>
+      <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+        {label}
+      </label>
+      <input 
+        type="date" 
+        value={local[fieldKey]?.split('T')[0] || ''} 
+        onChange={e => setLocal({...local, [fieldKey]: e.target.value})} 
+        style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} 
+      />
+    </div>
+  );
+
   return (
-    <div style={{ maxWidth: '800px' }}>
-      <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Syringe size={22} /> Categoría 8: Esquema de Vacunación Prenatal
+    <div style={{ maxWidth: '1100px' }}>
+      <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '0.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Syringe size={22} /> Categoría 8: Esquema de Vacunación Prenatal por Trimestres
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
-        {[
-          { f: 'fechaToxoideTetanico', label: 'TOXOIDE TETÁNICO' },
-          { f: 'fechaTdap', label: 'TDAP (TÉTANOS/DIFTERIA/TOSFERINA)' },
-          { f: 'fechaInfluenza', label: 'INFLUENZA ESTACIONAL' },
-          { f: 'fechaCovid1', label: 'COVID-19 PRIMERA DOSIS' },
-          { f: 'fechaCovid2', label: 'COVID-19 SEGUNDA DOSIS' }
-        ].map(i => (
-          <div key={i.f}>
-            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>{i.label}</label>
-            <input type="date" value={local[i.f]?.split('T')[0] || ''} onChange={e => setLocal({...local, [i.f]: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
+      <p style={{ margin: '0 0 1.5rem', fontSize: '0.85rem', color: '#64748b', fontWeight: '700' }}>
+        Registre las fechas de aplicación de biológicos distribuidas según la etapa gestacional.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        
+        {/* 1ER TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa1') && (
+          <div style={{ background: 'rgba(16, 185, 129, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #10b981' }}>
+            <h4 style={{ color: '#047857', fontWeight: '950', margin: '0 0 1rem' }}>🌱 1er Trimestre</h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('fechaToxoideTetanico', 'TOXOIDE TETÁNICO (DOSIS 1)')}
+              {renderField('fechaCovid1', 'COVID-19 PRIMERA DOSIS')}
+            </div>
           </div>
-        ))}
+        )}
+
+        {/* 2DO TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa2') && (
+          <div style={{ background: 'rgba(59, 130, 246, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #3b82f6' }}>
+            <h4 style={{ color: '#1d4ed8', fontWeight: '950', margin: '0 0 1rem' }}>🌿 2do Trimestre</h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('fechaTdap', 'TDAP (TÉTANOS/DIFTERIA/TOSFERINA - SEM 26)')}
+              {renderField('fechaInfluenza', 'INFLUENZA ESTACIONAL (SEM 14+)')}
+              {renderField('fechaCovid2', 'COVID-19 SEGUNDA DOSIS')}
+            </div>
+          </div>
+        )}
+
+        {/* 3ER TRIMESTRE */}
+        {(!activeStage || activeStage === 'etapa3') && (
+          <div style={{ background: 'rgba(139, 92, 246, 0.03)', padding: '1.4rem', borderRadius: '20px', border: '2px solid #8b5cf6' }}>
+            <h4 style={{ color: '#7e22ce', fontWeight: '950', margin: '0 0 1rem' }}>🌺 3er Trimestre / Refuerzos</h4>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              {renderField('fechaRefuerzoToxoide', 'REFUERZO TOXOIDE TETÁNICO')}
+            </div>
+          </div>
+        )}
+
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
         <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ESQUEMA VACUNACIÓN'}
       </button>
     </div>
