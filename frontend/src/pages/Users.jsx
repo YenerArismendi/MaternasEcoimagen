@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, 
   Search, 
@@ -22,7 +23,9 @@ import {
   Sparkles,
   UserCheck,
   UserX,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotification } from '../context/NotificationContext';
@@ -31,10 +34,13 @@ import { useNavigate } from 'react-router-dom';
 const Users = () => {
   const navigate = useNavigate();
   const { notify } = useNotification();
+  const { user: userAuth } = useAuth();
+  const isSuperAdmin = userAuth?.rol === 'SUPERADMIN' || userAuth?.rol === 'SUPER_ROOT';
 
   const [activeTab, setActiveTab] = useState('administrativos'); // 'administrativos' | 'maternas'
   const [users, setUsers] = useState([]);
   const [maternas, setMaternas] = useState([]);
+  const [ipsList, setIpsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -49,7 +55,8 @@ const Users = () => {
     nombre: '',
     email: '',
     password: '',
-    rol: 'ENFERMERA',
+    rol: 'ADMIN',
+    ipsId: '',
     activo: true
   });
 
@@ -64,12 +71,14 @@ const Users = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resUsers, resMaternas] = await Promise.all([
+      const [resUsers, resMaternas, resIPS] = await Promise.all([
         api.get('/users'),
-        api.get('/maternas')
+        api.get('/maternas'),
+        api.get('/ips')
       ]);
       setUsers(resUsers.data || []);
       setMaternas(resMaternas.data || []);
+      setIpsList(resIPS.data || []);
     } catch (err) {
       console.error(err);
       notify('Error al cargar la información de usuarios', 'error');
@@ -86,10 +95,24 @@ const Users = () => {
   const handleOpenModal = (user = null) => {
     if (user) {
       setCurrentUser(user);
-      setFormData({ nombre: user.nombre, email: user.email, password: '', rol: user.rol, activo: user.activo });
+      setFormData({ 
+        nombre: user.nombre, 
+        email: user.email, 
+        password: '', 
+        rol: user.rol, 
+        ipsId: user.ipsId || '', 
+        activo: user.activo 
+      });
     } else {
       setCurrentUser(null);
-      setFormData({ nombre: '', email: '', password: '', rol: 'ENFERMERA', activo: true });
+      setFormData({ 
+        nombre: '', 
+        email: '', 
+        password: '', 
+        rol: 'ADMIN', 
+        ipsId: '', 
+        activo: true 
+      });
     }
     setIsModalOpen(true);
   };
@@ -113,10 +136,15 @@ const Users = () => {
   const handleSubmitUser = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        ipsId: formData.ipsId ? parseInt(formData.ipsId) : null
+      };
+
       if (currentUser) {
-        await api.put(`/users/${currentUser.id}`, formData);
+        await api.put(`/users/${currentUser.id}`, payload);
       } else {
-        await api.post('/users', formData);
+        await api.post('/users', payload);
       }
       setIsModalOpen(false);
       fetchData();
@@ -168,14 +196,62 @@ const Users = () => {
     }
   };
 
+  const [expandedIps, setExpandedIps] = useState({});
+
+  const toggleIpsExpand = (ipsId) => {
+    setExpandedIps(prev => ({
+      ...prev,
+      [ipsId]: prev[ipsId] === undefined ? false : !prev[ipsId] // Por defecto abierto (undefined = abierto)
+    }));
+  };
+
   // Filtros
-  const adminUsers = users.filter(u => u.rol !== 'GESTANTE' && u.rol !== 'MATERNA');
+  const adminUsers = users.filter(u => {
+    if (u.rol === 'GESTANTE' || u.rol === 'MATERNA') return false;
+    if (!isSuperAdmin && userAuth?.ipsId) {
+      return u.ipsId === userAuth.ipsId || u.ips?.id === userAuth.ipsId;
+    }
+    return true;
+  });
   
   const filteredAdminUsers = adminUsers.filter(u => 
     u.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.rol.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Agrupamiento por IPS para vista Super Root
+  const groupedUsersByIps = useMemo(() => {
+    if (!isSuperAdmin) return [];
+
+    const groups = [];
+
+    ipsList.forEach(ips => {
+      const ipsUsers = filteredAdminUsers.filter(u => u.ipsId === ips.id || u.ips?.id === ips.id);
+      const adminUsersOfIps = ipsUsers.filter(u => u.rol === 'ADMIN');
+      groups.push({
+        id: ips.id,
+        nombre: ips.nombre,
+        nit: ips.nit,
+        admins: adminUsersOfIps,
+        users: ipsUsers
+      });
+    });
+
+    const globalUsers = filteredAdminUsers.filter(u => !u.ipsId && !u.ips);
+    if (globalUsers.length > 0) {
+      const globalAdmins = globalUsers.filter(u => u.rol === 'ADMIN' || u.rol === 'SUPERADMIN' || u.rol === 'SUPER_ROOT');
+      groups.push({
+        id: 'global',
+        nombre: 'Acceso Global / Super Root',
+        nit: 'N/A',
+        admins: globalAdmins,
+        users: globalUsers
+      });
+    }
+
+    return groups;
+  }, [ipsList, filteredAdminUsers, isSuperAdmin]);
 
   const filteredMaternas = maternas.filter(m => 
     `${m.nombres} ${m.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -185,8 +261,11 @@ const Users = () => {
 
   const getRolBadge = (rol) => {
     switch(rol) {
+      case 'SUPERADMIN':
+      case 'SUPER_ROOT':
+        return { label: 'Super Root Administrator', bg: '#fae8ff', color: '#86198f', icon: <Shield size={14} /> };
       case 'ADMIN': 
-        return { label: 'Administrador Sistema', bg: '#dbeafe', color: '#1e40af', icon: <Shield size={14} /> };
+        return { label: 'Administrador IPS', bg: '#dbeafe', color: '#1e40af', icon: <Shield size={14} /> };
       case 'MEDICO': 
         return { label: 'Médico Especialista', bg: '#dcfce7', color: '#15803d', icon: <Stethoscope size={14} /> };
       case 'ENFERMERA': 
@@ -283,69 +362,248 @@ const Users = () => {
 
         {/* ─── PESTAÑA 1: PERSONAL ADMINISTRATIVO Y ASISTENCIAL ─── */}
         {activeTab === 'administrativos' && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
-              <thead>
-                <tr style={{ background: '#f1f5f9', color: '#475569', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  <th style={{ padding: '1.2rem 1.4rem' }}>PERSONAL / USUARIO</th>
-                  <th style={{ padding: '1.2rem 1.4rem' }}>ROL ASIGNADO</th>
-                  <th style={{ padding: '1.2rem 1.4rem' }}>ESTADO DE ACCESO</th>
-                  <th style={{ padding: '1.2rem 1.4rem', textAlign: 'right' }}>ACCIONES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAdminUsers.map(u => {
-                  const rolBadge = getRolBadge(u.rol);
+          <div>
+            {isSuperAdmin ? (
+              /* VISTA SUPER ROOT: AGRUPADA POR IPS CON DESPLEGABLES */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '1.2rem' }}>
+                {groupedUsersByIps.map(group => {
+                  const isExpanded = expandedIps[group.id] ?? true; // Por defecto desplegado
                   return (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '1.2rem 1.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '42px', height: '42px', borderRadius: '14px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950', flexShrink: 0 }}>
-                            {u.nombre.charAt(0).toUpperCase()}
+                    <div key={group.id} style={{
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '20px',
+                      overflow: 'hidden',
+                      background: '#ffffff',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
+                    }}>
+                      {/* Encabezado de IPS / Administrador */}
+                      <div 
+                        onClick={() => toggleIpsExpand(group.id)}
+                        style={{
+                          padding: '1.2rem 1.5rem',
+                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          borderBottom: isExpanded ? '1.5px solid #e2e8f0' : 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{
+                            width: '46px', height: '46px', borderRadius: '14px',
+                            background: '#e0f2fe', color: '#0284c7',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            <Building2 size={24} />
                           </div>
                           <div>
-                            <p style={{ margin: 0, fontWeight: '950', color: '#0f172a', fontSize: '0.92rem' }}>{u.nombre}</p>
-                            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b', fontWeight: '700' }}>{u.email}</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '950', color: '#0f172a' }}>
+                                {group.nombre}
+                              </h3>
+                              <span style={{
+                                fontSize: '0.75rem', fontWeight: '900', color: '#0369a1',
+                                background: '#bae6fd', padding: '3px 10px', borderRadius: '10px'
+                              }}>
+                                {group.users.length} {group.users.length === 1 ? 'Usuario' : 'Usuarios'}
+                              </span>
+                            </div>
+
+                            {/* Muestra Administrador(es) de la IPS */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                              <Shield size={14} color="#0284c7" />
+                              <span style={{ fontSize: '0.82rem', fontWeight: '800', color: '#475569' }}>
+                                Administrador(es): {' '}
+                                {group.admins.length > 0 ? (
+                                  group.admins.map(a => `${a.nombre} (${a.email})`).join(', ')
+                                ) : (
+                                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin administrador asignado</span>
+                                )}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </td>
 
-                      <td style={{ padding: '1.2rem 1.4rem' }}>
-                        <span style={{ padding: '6px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '950', background: rolBadge.bg, color: rolBadge.color, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          {rolBadge.icon} {rolBadge.label}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '1.2rem 1.4rem' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '10px', background: u.activo ? '#f0fdf4' : '#fff1f2', color: u.activo ? '#166534' : '#991b1b', fontSize: '0.78rem', fontWeight: '900', border: `1px solid ${u.activo ? '#bbf7d0' : '#fecdd3'}` }}>
-                          {u.activo ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                          {u.activo ? 'ACTIVO' : 'INACTIVO'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: '800', color: '#64748b' }}>
+                            {isExpanded ? 'Ocultar personal' : 'Desplegar personal'}
+                          </span>
+                          <div style={{
+                            width: '32px', height: '32px', borderRadius: '50%',
+                            background: '#ffffff', border: '1px solid #cbd5e1',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#0f172a'
+                          }}>
+                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </div>
                         </div>
-                      </td>
+                      </div>
 
-                      <td style={{ padding: '1.2rem 1.4rem', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                          <button 
-                            onClick={() => handleOpenModal(u)} 
-                            style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', color: '#334155', borderRadius: '10px', fontSize: '0.78rem', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      {/* Tabla de Usuarios Desplegada */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ overflowX: 'auto' }}
                           >
-                            <Edit2 size={14} /> Editar
-                          </button>
+                            {group.users.length === 0 ? (
+                              <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem', fontWeight: '700' }}>
+                                No hay usuarios asignados a esta IPS.
+                              </div>
+                            ) : (
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
+                                <thead>
+                                  <tr style={{ background: '#ffffff', color: '#64748b', fontSize: '0.72rem', fontWeight: '900', textTransform: 'uppercase', borderBottom: '1px solid #f1f5f9' }}>
+                                    <th style={{ padding: '1rem 1.4rem' }}>USUARIO / EMAIL</th>
+                                    <th style={{ padding: '1rem 1.4rem' }}>ROL ASIGNADO</th>
+                                    <th style={{ padding: '1rem 1.4rem' }}>ESTADO</th>
+                                    <th style={{ padding: '1rem 1.4rem', textAlign: 'right' }}>ACCIONES</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.users.map(u => {
+                                    const rolBadge = getRolBadge(u.rol);
+                                    return (
+                                      <tr key={u.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                        <td style={{ padding: '1rem 1.4rem' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950', fontSize: '0.85rem' }}>
+                                              {u.nombre.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                              <p style={{ margin: 0, fontWeight: '950', color: '#0f172a', fontSize: '0.88rem' }}>{u.nombre}</p>
+                                              <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: '700' }}>{u.email}</p>
+                                            </div>
+                                          </div>
+                                        </td>
 
-                          <button 
-                            onClick={() => handleToggleStatus(u)} 
-                            style={{ background: u.activo ? '#fff1f2' : '#f0fdf4', border: `1px solid ${u.activo ? '#fda4af' : '#86efac'}`, padding: '8px 12px', color: u.activo ? '#e11d48' : '#15803d', borderRadius: '10px', fontSize: '0.78rem', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            {u.activo ? <UserX size={14} /> : <UserCheck size={14} />}
-                            {u.activo ? 'Desactivar' : 'Activar'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                                        <td style={{ padding: '1rem 1.4rem' }}>
+                                          <span style={{ padding: '4px 12px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '950', background: rolBadge.bg, color: rolBadge.color, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            {rolBadge.icon} {rolBadge.label}
+                                          </span>
+                                        </td>
+
+                                        <td style={{ padding: '1rem 1.4rem' }}>
+                                          <span style={{ padding: '4px 10px', borderRadius: '8px', background: u.activo ? '#f0fdf4' : '#fff1f2', color: u.activo ? '#166534' : '#991b1b', fontSize: '0.72rem', fontWeight: '900', border: `1px solid ${u.activo ? '#bbf7d0' : '#fecdd3'}` }}>
+                                            {u.activo ? 'ACTIVO' : 'INACTIVO'}
+                                          </span>
+                                        </td>
+
+                                        <td style={{ padding: '1rem 1.4rem', textAlign: 'right' }}>
+                                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                            <button 
+                                              onClick={() => handleOpenModal(u)} 
+                                              style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 10px', color: '#334155', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '900', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                              <Edit2 size={12} /> Editar
+                                            </button>
+                                            <button 
+                                              onClick={() => handleToggleStatus(u)} 
+                                              style={{ background: u.activo ? '#fff1f2' : '#f0fdf4', border: `1px solid ${u.activo ? '#fda4af' : '#86efac'}`, padding: '6px 10px', color: u.activo ? '#e11d48' : '#15803d', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '900', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                              {u.activo ? <UserX size={12} /> : <UserCheck size={12} />}
+                                              {u.activo ? 'Desactivar' : 'Activar'}
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            ) : (
+              /* VISTA ESTÁNDAR PARA ADMINISTRADOR DE IPS: SOLO SUS USUARIOS */
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', color: '#475569', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                      <th style={{ padding: '1.2rem 1.4rem' }}>PERSONAL / USUARIO</th>
+                      <th style={{ padding: '1.2rem 1.4rem' }}>IPS ASOCIADA</th>
+                      <th style={{ padding: '1.2rem 1.4rem' }}>ROL ASIGNADO</th>
+                      <th style={{ padding: '1.2rem 1.4rem' }}>ESTADO DE ACCESO</th>
+                      <th style={{ padding: '1.2rem 1.4rem', textAlign: 'right' }}>ACCIONES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAdminUsers.map(u => {
+                      const rolBadge = getRolBadge(u.rol);
+                      return (
+                        <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '1.2rem 1.4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ width: '42px', height: '42px', borderRadius: '14px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950', flexShrink: 0 }}>
+                                {u.nombre.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p style={{ margin: 0, fontWeight: '950', color: '#0f172a', fontSize: '0.92rem' }}>{u.nombre}</p>
+                                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b', fontWeight: '700' }}>{u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '1.2rem 1.4rem' }}>
+                            {u.ips ? (
+                              <span style={{ fontSize: '0.82rem', fontWeight: '800', color: '#0369a1', background: '#e0f2fe', padding: '6px 12px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid #bae6fd' }}>
+                                <Building2 size={14} /> {u.ips.nombre}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', background: '#f1f5f9', padding: '4px 10px', borderRadius: '8px' }}>
+                                Mi IPS
+                              </span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '1.2rem 1.4rem' }}>
+                            <span style={{ padding: '6px 14px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '950', background: rolBadge.bg, color: rolBadge.color, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              {rolBadge.icon} {rolBadge.label}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '1.2rem 1.4rem' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '10px', background: u.activo ? '#f0fdf4' : '#fff1f2', color: u.activo ? '#166534' : '#991b1b', fontSize: '0.78rem', fontWeight: '900', border: `1px solid ${u.activo ? '#bbf7d0' : '#fecdd3'}` }}>
+                              {u.activo ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                              {u.activo ? 'ACTIVO' : 'INACTIVO'}
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '1.2rem 1.4rem', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                              <button 
+                                onClick={() => handleOpenModal(u)} 
+                                style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', color: '#334155', borderRadius: '10px', fontSize: '0.78rem', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Edit2 size={14} /> Editar
+                              </button>
+
+                              <button 
+                                onClick={() => handleToggleStatus(u)} 
+                                style={{ background: u.activo ? '#fff1f2' : '#f0fdf4', border: `1px solid ${u.activo ? '#fda4af' : '#86efac'}`, padding: '8px 12px', color: u.activo ? '#e11d48' : '#15803d', borderRadius: '10px', fontSize: '0.78rem', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                {u.activo ? <UserX size={14} /> : <UserCheck size={14} />}
+                                {u.activo ? 'Desactivar' : 'Activar'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -470,11 +728,26 @@ const Users = () => {
                 <div>
                   <label style={{ fontSize: '0.75rem', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Rol en el Sistema</label>
                   <select value={formData.rol} onChange={e => setFormData({...formData, rol: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '14px', border: '1.5px solid #cbd5e1', fontWeight: '800', fontSize: '0.9rem' }}>
+                    <option value="ADMIN">Administrador del Sistema / IPS</option>
                     <option value="ENFERMERA">Enfermera de Gestión CPN</option>
                     <option value="MEDICO">Médico Especialista / Obstetra</option>
-                    <option value="ADMIN">Administrador del Sistema</option>
                     <option value="AUDITOR">Auditor de Cohorte FOMAG</option>
                   </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>IPS Institucional Asociada</label>
+                  <select value={formData.ipsId} onChange={e => setFormData({...formData, ipsId: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '14px', border: '1.5px solid #cbd5e1', fontWeight: '800', fontSize: '0.9rem' }}>
+                    <option value="">-- Sin IPS (Acceso Administrador Global / Multitenant) --</option>
+                    {ipsList.map(ips => (
+                      <option key={ips.id} value={ips.id}>
+                        {ips.nombre} ({ips.codigoHabilitacion})
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700', marginTop: '4px', display: 'block' }}>
+                    Al asociar una IPS, la plantilla y datos de este usuario se segmentarán automáticamente para esa institución.
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '0.5rem' }}>

@@ -79,12 +79,24 @@ func InitDB() *gorm.DB {
 		&models.AnuncioParticipacion{},
 		&models.PDFExtractorConfig{},
 		&models.LabParam{},
+		&models.IPS{},
 	)
 	if err != nil {
 		log.Fatalf("❌ Error en AutoMigrate de GORM: %v", err)
 	}
 
+	// Migración manual de columnas ips_id para SQLite/Postgres
+	_ = db.Exec("ALTER TABLE users ADD COLUMN ips_id INTEGER;").Error
+	_ = db.Exec("ALTER TABLE gestantes ADD COLUMN ips_id INTEGER;").Error
+
 	fmt.Println("✅ Tablas y esquema migrados exitosamente")
 	DB = db
 	return db
+}
+
+func GetDB() *gorm.DB {
+	if DB == nil {
+		return nil
+	}
+	return DB.Session(&gorm.Session{NewDB: true})
 }

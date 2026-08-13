@@ -176,9 +176,22 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
           fechaRealizada: new Date(confirmModal.fecha + 'T12:00:00'),
           resultado: confirmModal.notas || 'Asistencia Confirmada'
         });
-        notify('✅ ¡Asistencia confirmada! La fecha se ha anexado automáticamente a la matriz Excel FOMAG.');
+        notify('✅ ¡Asistencia confirmada! La atención ha quedado registrada en la ficha de la gestante y en la matriz Excel FOMAG.', 'success');
+      } else if (confirmModal.hito) {
+        await api.post('/eventos', {
+          tipo: confirmModal.hito.categoria === 'VACUNA' || confirmModal.hito.id === 'vacunas' ? 'VACUNA' : (confirmModal.hito.categoria === 'EXAMEN' ? 'LABORATORIO' : 'CONSULTA'),
+          descripcion: confirmModal.hito.titulo,
+          fechaProgramada: confirmModal.fecha,
+          fechaRealizada: new Date(confirmModal.fecha + 'T12:00:00'),
+          estado: 'REALIZADO',
+          resultado: confirmModal.notas || 'Asistencia Confirmada',
+          esObligatorio: true,
+          esControl: confirmModal.hito.categoria === 'CONSULTA' || confirmModal.hito.id === 'cpn',
+          maternaId: materna.id
+        });
+        notify('✅ ¡Atención registrada y confirmada! La atención ha quedado registrada en la ficha de la gestante y en la matriz Excel FOMAG.', 'success');
       }
-      setConfirmModal({ open: false, evento: null, fecha: '', notas: '' });
+      setConfirmModal({ open: false, evento: null, hito: null, fecha: '', notas: '' });
       if (onRefresh) onRefresh();
     } catch (err) {
       notify('Error al confirmar asistencia', 'error');
@@ -265,20 +278,27 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', paddingTop: '6px', borderTop: '1px dashed #bfdbfe' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px dashed #bfdbfe' }}>
+                  <button
+                    onClick={() => setConfirmModal({ open: true, evento: null, hito: cNorm, fecha: todayStr, notas: '' })}
+                    style={{ flex: 1.2, background: '#10b981', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(16,185,129,0.25)' }}
+                  >
+                    <CheckCircle2 size={13} /> Confirmar Atendida
+                  </button>
+
                   <button
                     onClick={() => setAgendarModal({ open: true, evento: null, hito: cNorm, fecha: todayStr })}
                     style={{ flex: 1, background: '#2563eb', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(37,99,235,0.25)' }}
                   >
-                    <Calendar size={13} /> Agendar Consulta
+                    <Calendar size={13} /> Agendar
                   </button>
 
                   {onNavigateTab && (
                     <button
                       onClick={() => onNavigateTab(cNorm.id)}
-                      style={{ flex: 1.2, background: '#ffffff', color: '#1e40af', border: '1px solid #3b82f6', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      style={{ flex: 1.1, background: '#ffffff', color: '#1e40af', border: '1px solid #3b82f6', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                     >
-                      <FileText size={13} /> Diligenciar Ficha
+                      <FileText size={13} /> Ficha
                     </button>
                   )}
                 </div>
@@ -302,17 +322,17 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
 
                 <div style={{ display: 'flex', gap: '8px', paddingTop: '6px', borderTop: '1px dashed #bae6fd' }}>
                   <button
-                    onClick={() => setAgendarModal({ open: true, evento: ev, hito: null, fecha: ev.fechaAgendamiento ? new Date(ev.fechaAgendamiento).toISOString().split('T')[0] : todayStr })}
-                    style={{ flex: 1, background: '#0284c7', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                  >
-                    <Calendar size={13} /> Agendar Cita
-                  </button>
-
-                  <button
                     onClick={() => setConfirmModal({ open: true, evento: ev, fecha: todayStr, notas: '' })}
                     style={{ flex: 1.2, background: '#10b981', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                   >
                     <CheckCircle2 size={13} /> Confirmar Atendida
+                  </button>
+
+                  <button
+                    onClick={() => setAgendarModal({ open: true, evento: ev, hito: null, fecha: ev.fechaAgendamiento ? new Date(ev.fechaAgendamiento).toISOString().split('T')[0] : todayStr })}
+                    style={{ flex: 1, background: '#0284c7', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  >
+                    <Calendar size={13} /> Agendar Cita
                   </button>
                 </div>
               </div>
@@ -348,20 +368,27 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', paddingTop: '6px', borderTop: '1px dashed #fef08a' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px dashed #fef08a' }}>
+                  <button
+                    onClick={() => setConfirmModal({ open: true, evento: null, hito: hito, fecha: todayStr, notas: '' })}
+                    style={{ flex: 1.2, background: '#10b981', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(16,185,129,0.25)' }}
+                  >
+                    <CheckCircle2 size={13} /> Confirmar Atendida
+                  </button>
+
                   <button
                     onClick={() => setAgendarModal({ open: true, evento: null, hito: hito, fecha: todayStr })}
                     style={{ flex: 1, background: '#eab308', color: 'white', border: 'none', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(234,179,8,0.25)' }}
                   >
-                    <Calendar size={13} /> Agendar Cita
+                    <Calendar size={13} /> Agendar
                   </button>
 
                   {onNavigateTab && (
                     <button
                       onClick={() => onNavigateTab(hito.id)}
-                      style={{ flex: 1.2, background: '#ffffff', color: '#854d0e', border: '1px solid #eab308', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      style={{ flex: 1.1, background: '#ffffff', color: '#854d0e', border: '1px solid #eab308', padding: '7px 10px', borderRadius: '10px', fontSize: '0.73rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                     >
-                      <FileText size={13} /> Diligenciar Ficha
+                      <FileText size={13} /> Ficha
                     </button>
                   )}
                 </div>

@@ -12,16 +12,43 @@ import (
 )
 
 type UserResponse struct {
-	ID        uint   `json:"id"`
-	Nombre    string `json:"nombre"`
-	Email     string `json:"email"`
-	Rol       string `json:"rol"`
-	Activo    bool   `json:"activo"`
+	ID        uint        `json:"id"`
+	Nombre    string      `json:"nombre"`
+	Email     string      `json:"email"`
+	Rol       string      `json:"rol"`
+	IPSID     *uint       `json:"ipsId"`
+	IPS       *models.IPS `json:"ips,omitempty"`
+	Activo    bool        `json:"activo"`
 }
 
 func GetUsers(c *gin.Context) {
+	userIDVal, exists := c.Get("userId")
+	var currentUser models.User
+	if exists {
+		dbSession := config.GetDB()
+		switch v := userIDVal.(type) {
+		case uint:
+			dbSession.First(&currentUser, v)
+		case float64:
+			dbSession.First(&currentUser, uint(v))
+		case int:
+			dbSession.First(&currentUser, uint(v))
+		}
+	}
+
+	query := config.GetDB().Model(&models.User{}).Preload("IPS").Order("created_at desc")
+
+	// Si no es SUPERADMIN ni SUPER_ROOT, sólo puede ver usuarios de su misma IPS
+	if currentUser.Rol != "SUPERADMIN" && currentUser.Rol != "SUPER_ROOT" {
+		if currentUser.IPSID != nil && *currentUser.IPSID > 0 {
+			query = query.Where("ips_id = ?", *currentUser.IPSID)
+		} else {
+			query = query.Where("ips_id = -1") // Previene listar usuarios si el admin no tiene IPS asignada
+		}
+	}
+
 	var users []models.User
-	if err := config.DB.Order("created_at desc").Find(&users).Error; err != nil {
+	if err := query.Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener usuarios"})
 		return
 	}
@@ -33,6 +60,8 @@ func GetUsers(c *gin.Context) {
 			Nombre: u.Nombre,
 			Email:  u.Email,
 			Rol:    u.Rol,
+			IPSID:  u.IPSID,
+			IPS:    u.IPS,
 			Activo: u.Activo,
 		})
 	}
@@ -45,6 +74,7 @@ type CreateUserInput struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 	Rol      string `json:"rol"`
+	IPSID    *uint  `json:"ipsId"`
 }
 
 func CreateUser(c *gin.Context) {
@@ -59,6 +89,17 @@ func CreateUser(c *gin.Context) {
 		rol = "ENFERMERA"
 	}
 
+	// Si el creador pertenece a una IPS y no especificó ipsId, asignamos su misma IPS
+	userIDVal, exists := c.Get("userId")
+	if exists {
+		if uid, ok := userIDVal.(uint); ok {
+			var creator models.User
+			if config.DB.First(&creator, uid).Error == nil && creator.IPSID != nil && input.IPSID == nil {
+				input.IPSID = creator.IPSID
+			}
+		}
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al encriptar contraseña"})
@@ -70,6 +111,7 @@ func CreateUser(c *gin.Context) {
 		Email:    input.Email,
 		Password: string(hashedPassword),
 		Rol:      rol,
+		IPSID:    input.IPSID,
 		Activo:   true,
 	}
 
@@ -78,11 +120,17 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	if user.IPSID != nil && *user.IPSID > 0 {
+		config.DB.Preload("IPS").First(&user, user.ID)
+	}
+
 	c.JSON(http.StatusCreated, UserResponse{
 		ID:     user.ID,
 		Nombre: user.Nombre,
 		Email:  user.Email,
 		Rol:    user.Rol,
+		IPSID:  user.IPSID,
+		IPS:    user.IPS,
 		Activo: user.Activo,
 	})
 }
@@ -101,34 +149,51 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	var body struct {
-		Nombre   *string `json:"nombre"`
-		Email    *string `json:"email"`
-		Password *string `json:"password"`
-		Rol      *string `json:"rol"`
-		Activo   *bool   `json:"activo"`
-	}
-
-	if err := c.ShouldBindJSON(&body); err != nil {
+	var rawBody map[string]interface{}
+	if err := c.ShouldBindJSON(&rawBody); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
 		return
 	}
 
-	if body.Nombre != nil {
-		user.Nombre = *body.Nombre
+	if nombreVal, ok := rawBody["nombre"].(string); ok && nombreVal != "" {
+		user.Nombre = nombreVal
 	}
-	if body.Email != nil {
-		user.Email = *body.Email
+	if emailVal, ok := rawBody["email"].(string); ok && emailVal != "" {
+		user.Email = emailVal
 	}
-	if body.Rol != nil {
-		user.Rol = *body.Rol
+	if rolVal, ok := rawBody["rol"].(string); ok && rolVal != "" {
+		user.Rol = rolVal
 	}
-	if body.Activo != nil {
-		user.Activo = *body.Activo
+	if activoVal, ok := rawBody["activo"].(bool); ok {
+		user.Activo = activoVal
 	}
-	if body.Password != nil && *body.Password != "" {
-		hp, _ := bcrypt.GenerateFromPassword([]byte(*body.Password), 12)
+	if passVal, ok := rawBody["password"].(string); ok && passVal != "" {
+		hp, _ := bcrypt.GenerateFromPassword([]byte(passVal), 12)
 		user.Password = string(hp)
+	}
+
+	if ipsIdVal, exists := rawBody["ipsId"]; exists {
+		if ipsIdVal == nil {
+			user.IPSID = nil
+			config.DB.Model(&user).Select("ips_id").Update("ips_id", nil)
+		} else {
+			var parsedID uint
+			switch v := ipsIdVal.(type) {
+			case float64:
+				parsedID = uint(v)
+			case int:
+				parsedID = uint(v)
+			case int64:
+				parsedID = uint(v)
+			}
+			if parsedID > 0 {
+				user.IPSID = &parsedID
+				config.DB.Model(&user).Select("ips_id").Update("ips_id", parsedID)
+			} else {
+				user.IPSID = nil
+				config.DB.Model(&user).Select("ips_id").Update("ips_id", nil)
+			}
+		}
 	}
 
 	if err := config.DB.Save(&user).Error; err != nil {
@@ -136,11 +201,19 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	if user.IPSID != nil && *user.IPSID > 0 {
+		config.DB.Preload("IPS").First(&user, user.ID)
+	} else {
+		user.IPS = nil
+	}
+
 	c.JSON(http.StatusOK, UserResponse{
 		ID:     user.ID,
 		Nombre: user.Nombre,
 		Email:  user.Email,
 		Rol:    user.Rol,
+		IPSID:  user.IPSID,
+		IPS:    user.IPS,
 		Activo: user.Activo,
 	})
 }

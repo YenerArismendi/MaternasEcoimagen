@@ -31,9 +31,12 @@ func main() {
 	}
 
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{frontendURL, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"}
+	corsConfig.AllowOriginFunc = func(origin string) bool {
+		return true
+	}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "Accept"}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	corsConfig.AllowCredentials = true
 	r.Use(cors.New(corsConfig))
 
 	// Grupo API
@@ -125,6 +128,12 @@ func main() {
 			auth.POST("/anuncios/:id/participar", handlers.ParticiparAnuncio)
 			auth.DELETE("/anuncios/:id/participar", handlers.CancelarParticipacion)
 			auth.GET("/anuncios/:id/participaciones", handlers.GetParticipaciones)
+
+			// Gestión de IPS
+			auth.GET("/ips", handlers.GetIPSHandler)
+			auth.POST("/ips", handlers.CreateIPSHandler)
+			auth.PUT("/ips/:id", handlers.UpdateIPSHandler)
+			auth.DELETE("/ips/:id", handlers.DeleteIPSHandler)
 		}
 	}
 

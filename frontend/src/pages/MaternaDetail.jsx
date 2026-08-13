@@ -6,7 +6,8 @@ import {
   Clock, RefreshCw, ClipboardList, Stethoscope, Microscope,
   Syringe, PhoneCall, Save, ShieldAlert, Award, FileSpreadsheet,
   Activity, BookOpen, UserCheck, Sparkles, CheckCircle2, ChevronRight,
-  Filter, Layers, Check, Circle, Bell, Copy, FileText
+  Filter, Layers, Check, Circle, Bell, Copy, FileText,
+  Edit3, X, FileEdit, Maximize2, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -42,6 +43,224 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+const CATEGORY_TITLES = {
+  perfil: 'Categoría 1: Perfil Demográfico & Enfoque Diferencial',
+  antecedentes: 'Categoría 2 y 3: Antecedentes Ginecoobstétricos, Personales y Familiares',
+  ingreso: 'Categoría 2: Ingreso al Control Prenatal (CPN) & 19 Campos FOMAG',
+  nutricion: 'Categoría 4: Nutrición Inicial & Valoración Antropométrica',
+  controles: 'Categoría 5: Seguimiento y Registro de Controles Prenatales',
+  paraclinicos: 'Categoría 6: Exámenes Paraclínicos & Imágenes Diagnósticas',
+  interdisciplinario: 'Categoría 7: Atenciones Interdisciplinarias (Odontología, Nutrición, Psicología)',
+  vacunas: 'Categoría 8: Esquema Completo de Vacunación Materna',
+  cursos: 'Categoría 9: Cursos de Preparación para la Maternidad & Paternidad',
+  ive_lactancia: 'Categoría 10: IVE, Lactancia Materna & Planificación Familiar',
+  posparto: 'Categoría 11: Registro de Parto, Puerperio & Egreso Recién Nacido',
+  telefonico: 'Categoría 12: Registro de Monitoreo & Seguimientos Telefónicos',
+  calendario: 'Agenda Médica & Calendario de Eventos'
+};
+
+const getCategoryCardData = (tabId, materna) => {
+  const ant = materna?.antecedentes || {};
+  const cpn = materna?.ingresoCPN || {};
+  const para = materna?.paraclinicos || {};
+  const egr = materna?.egresoYPosparto || {};
+
+  switch (tabId) {
+    case 'perfil':
+      return {
+        id: 'perfil',
+        title: '1. Perfil Demográfico & Enfoque',
+        icon: <User size={22} />,
+        color: '#2563eb',
+        statusBg: materna?.region ? '#dbeafe' : '#f1f5f9',
+        statusColor: materna?.region ? '#1e40af' : '#64748b',
+        statusText: materna?.region ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'IPS Atención', value: materna?.ipsAtencion || materna?.ips?.nombre || 'No asignada' },
+          { label: 'Ubicación', value: materna?.municipio ? `${materna.municipio}, ${materna.departamento || ''}` : 'N/A' },
+          { label: 'Ocupación', value: materna?.ocupacionOficio || 'Sin registrar' },
+          { label: 'Población', value: materna?.caracterizacionPoblacion || 'General' }
+        ]
+      };
+    case 'antecedentes':
+      return {
+        id: 'antecedentes',
+        title: '2. Antecedentes Clínicos y Obstétricos',
+        icon: <ClipboardList size={22} />,
+        color: '#8b5cf6',
+        statusBg: ant.gestaciones !== undefined ? '#f3e8ff' : '#f1f5f9',
+        statusColor: ant.gestaciones !== undefined ? '#6b21a8' : '#64748b',
+        statusText: ant.gestaciones !== undefined ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Fórmula Obstétrica', value: `G${ant.gestaciones || 0} P${ant.partosVaginales || 0} C${ant.cesareas || 0} A${ant.aborto || 0} V${ant.vivos || 0}` },
+          { label: 'HTA / Diabetes', value: `HTA: ${ant.hipertension || 'NO'} | DM: ${ant.diabetesMellitus || 'NO'}` },
+          { label: 'Preeclampsia', value: ant.preeclampsia || 'NO' }
+        ]
+      };
+    case 'ingreso':
+      return {
+        id: 'ingreso',
+        title: '3. Ingreso CPN & 19 Campos FOMAG',
+        icon: <Clock size={22} />,
+        color: '#10b981',
+        statusBg: cpn.clasificacionRiesgoActual ? '#d1fae5' : '#f1f5f9',
+        statusColor: cpn.clasificacionRiesgoActual ? '#065f46' : '#64748b',
+        statusText: cpn.clasificacionRiesgoActual ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Riesgo Obstétrico', value: cpn.clasificacionRiesgoActual || 'Sin evaluar', color: cpn.clasificacionRiesgoActual === 'ALTO RIESGO' ? '#dc2626' : '#059669' },
+          { label: 'F.U.R', value: cpn.fur?.split('T')[0] || 'Sin fecha' },
+          { label: 'Sífilis / VIH', value: `Sífilis: ${para.sifilis_Resultado || 'Pendiente'} | VIH: ${para.vih_Resultado || 'Pendiente'}` }
+        ]
+      };
+    case 'nutricion':
+      return {
+        id: 'nutricion',
+        title: '4. Nutrición Inicial & Antropometría',
+        icon: <Activity size={22} />,
+        color: '#f59e0b',
+        statusBg: cpn.imc_Gestacional ? '#fef3c7' : '#f1f5f9',
+        statusColor: cpn.imc_Gestacional ? '#92400e' : '#64748b',
+        statusText: cpn.imc_Gestacional ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'IMC Gestacional', value: cpn.imc_Gestacional || 'Sin calcular' },
+          { label: 'Peso / Talla', value: cpn.pesoActual_kg ? `${cpn.pesoActual_kg}kg / ${cpn.talla_cm || '?'}cm` : 'N/A' },
+          { label: 'Riesgo Nutricional', value: cpn.clasificacionRiesgoNutricional || 'Sin evaluar' }
+        ]
+      };
+    case 'controles':
+      return {
+        id: 'controles',
+        title: '5. Controles Prenatales (CPN)',
+        icon: <Stethoscope size={22} />,
+        color: '#06b6d4',
+        statusBg: materna?.controles?.length > 0 ? '#cffafe' : '#f1f5f9',
+        statusColor: materna?.controles?.length > 0 ? '#155e75' : '#64748b',
+        statusText: `${materna?.controles?.length || 0} CONTROLES`,
+        highlights: [
+          { label: 'Total Registrados', value: `${materna?.controles?.length || 0} controles de 11` },
+          { label: 'Último Control', value: materna?.controles?.[materna.controles.length - 1]?.fechaControl?.split('T')[0] || 'Ninguno' }
+        ]
+      };
+    case 'paraclinicos':
+      return {
+        id: 'paraclinicos',
+        title: '6. Paraclínicos & Imágenes Diagnósticas',
+        icon: <Microscope size={22} />,
+        color: '#ec4899',
+        statusBg: para.hemoglobina1 ? '#fce7f3' : '#f1f5f9',
+        statusColor: para.hemoglobina1 ? '#9d174d' : '#64748b',
+        statusText: para.hemoglobina1 ? 'EN SEGUIMIENTO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Hemoglobina 1T', value: para.hemoglobina1 ? `${para.hemoglobina1} g/dL` : 'Pendiente' },
+          { label: 'Urocultivo 1T', value: para.urocultivo1 || 'Pendiente' },
+          { label: 'Ecografía Detalle', value: para.ecografiaDetalle ? 'Realizada' : 'Pendiente' }
+        ]
+      };
+    case 'interdisciplinario':
+      return {
+        id: 'interdisciplinario',
+        title: '7. Atenciones Interdisciplinarias',
+        icon: <UserCheck size={22} />,
+        color: '#6366f1',
+        statusBg: egr.odontologia_ctrl1 ? '#e0e7ff' : '#f1f5f9',
+        statusColor: egr.odontologia_ctrl1 ? '#3730a3' : '#64748b',
+        statusText: egr.odontologia_ctrl1 ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Odontología', value: egr.odontologia_ctrl1 ? 'Atendido' : 'Pendiente' },
+          { label: 'Nutrición', value: egr.nutricion_ctrl1 ? 'Atendido' : 'Pendiente' },
+          { label: 'Psicología', value: egr.psicologia_ctrl1 ? 'Atendido' : 'Pendiente' }
+        ]
+      };
+    case 'vacunas':
+      return {
+        id: 'vacunas',
+        title: '8. Esquema de Vacunación',
+        icon: <Syringe size={22} />,
+        color: '#14b8a6',
+        statusBg: egr.fechaTdap ? '#ccfbf1' : '#f1f5f9',
+        statusColor: egr.fechaTdap ? '#115e59' : '#64748b',
+        statusText: egr.fechaTdap ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Vacuna Tdap', value: egr.fechaTdap ? 'Aplicada' : 'Pendiente' },
+          { label: 'Influenza', value: egr.fechaInfluenza ? 'Aplicada' : 'Pendiente' },
+          { label: 'Toxoide Tetánico', value: egr.fechaToxoideTetanico ? 'Aplicada' : 'Pendiente' }
+        ]
+      };
+    case 'cursos':
+      return {
+        id: 'cursos',
+        title: '9. Cursos Preparación Maternidad',
+        icon: <BookOpen size={22} />,
+        color: '#a855f7',
+        statusBg: egr.asistenciaCursoMaternidad ? '#f3e8ff' : '#f1f5f9',
+        statusColor: egr.asistenciaCursoMaternidad ? '#6b21a8' : '#64748b',
+        statusText: egr.asistenciaCursoMaternidad ? 'EN CURSO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Asistencia Curso', value: egr.asistenciaCursoMaternidad || 'No asistió' },
+          { label: 'Sesiones', value: `${egr.sesionesCursoCompletadas || 0} completadas` }
+        ]
+      };
+    case 'ive_lactancia':
+      return {
+        id: 'ive_lactancia',
+        title: '10. IVE, Lactancia & Planificación',
+        icon: <Heart size={22} />,
+        color: '#e11d48',
+        statusBg: egr.asesoriaIVE ? '#ffe4e6' : '#f1f5f9',
+        statusColor: egr.asesoriaIVE ? '#9f1239' : '#64748b',
+        statusText: egr.asesoriaIVE ? 'DILIGENCIADO' : 'PENDIENTE',
+        highlights: [
+          { label: 'Asesoría IVE', value: egr.asesoriaIVE || 'No registrada' },
+          { label: 'Lactancia Materna', value: egr.educacionLactancia || 'Pendiente' },
+          { label: 'Método Elegido', value: egr.metodoElegido || 'Sin definir' }
+        ]
+      };
+    case 'posparto':
+      return {
+        id: 'posparto',
+        title: '11. Parto, Puerperio & Recién Nacido',
+        icon: <Baby size={22} />,
+        color: '#f43f5e',
+        statusBg: egr.fechaParto ? '#ffe4e6' : '#f1f5f9',
+        statusColor: egr.fechaParto ? '#9f1239' : '#64748b',
+        statusText: egr.fechaParto ? 'PARTO REGISTRADO' : 'GESTACIÓN ACTIVA',
+        highlights: [
+          { label: 'Fecha de Parto', value: egr.fechaParto?.split('T')[0] || 'En proceso' },
+          { label: 'Tipo de Parto', value: egr.tipoParto || 'N/A' },
+          { label: 'Peso Recién Nacido', value: egr.pesoRN_g ? `${egr.pesoRN_g} g` : 'N/A' }
+        ]
+      };
+    case 'telefonico':
+      return {
+        id: 'telefonico',
+        title: '12. Seguimiento Telefónico',
+        icon: <PhoneCall size={22} />,
+        color: '#0284c7',
+        statusBg: materna?.seguimientosTelef?.length > 0 ? '#e0f2fe' : '#f1f5f9',
+        statusColor: materna?.seguimientosTelef?.length > 0 ? '#075985' : '#64748b',
+        statusText: `${materna?.seguimientosTelef?.length || 0} LLAMADAS`,
+        highlights: [
+          { label: 'Contactos Realizados', value: `${materna?.seguimientosTelef?.length || 0} llamadas` }
+        ]
+      };
+    case 'calendario':
+      return {
+        id: 'calendario',
+        title: '13. Agenda & Eventos Médicos',
+        icon: <Calendar size={22} />,
+        color: '#64748b',
+        statusBg: '#f1f5f9',
+        statusColor: '#334155',
+        statusText: 'CALENDARIO',
+        highlights: [
+          { label: 'Citas & Alertas', value: `${materna?.eventos?.length || 0} eventos registrados` }
+        ]
+      };
+    default:
+      return null;
+  }
+};
+
 const MaternaDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -55,30 +274,107 @@ const MaternaDetail = () => {
   const [activeMainSection, setActiveMainSection] = useState('alertas'); // 'alertas' (paciente) | 'medico' (personal médico)
   const [saving, setSaving] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState(null);
 
   const handleApplyPDFData = async (pdfData) => {
     if (!pdfData || !pdfData.paraclinicos) return;
 
-    notify('Aplicando datos extraídos del PDF a la historia clínica...', 'info');
+    notify('Procesando y asignando resultados de paraclínicos al trimestre correspondiente...', 'info');
+
+    // Determinar trimestre objetivo
+    let targetTrim = pdfData.targetTrimestre;
+    if (!targetTrim || targetTrim === 'auto') {
+      const semPdf = pdfData.paciente?.semanasGestacion;
+      if (semPdf && semPdf > 0) {
+        if (semPdf <= 12) targetTrim = '1';
+        else if (semPdf <= 26) targetTrim = '2';
+        else targetTrim = '3';
+      } else {
+        const info = calculatePregnancyInfo(materna?.ingresoCPN?.fur || materna?.createdAt);
+        if (info.weeks >= 27) targetTrim = '3';
+        else if (info.weeks >= 13) targetTrim = '2';
+        else targetTrim = '1';
+      }
+    }
 
     const p = pdfData.paraclinicos;
-    const updatedParaclinicos = {
-      ...(materna.paraclinicos || {}),
-      ...(p.hemoglobina?.valorNumerico ? { hemoglobina1erTrim: String(p.hemoglobina.valorNumerico) } : {}),
-      ...(p.hematocrito?.valorNumerico ? { hematocrito1erTrim: String(p.hematocrito.valorNumerico) } : {}),
-      ...(p.plaquetas?.valorNumerico ? { plaquetas1erTrim: String(p.plaquetas.valorNumerico) } : {}),
-      ...(p.glicemiaEnAyunas?.valorNumerico ? { glicemiaAyunas1erTrim: String(p.glicemiaEnAyunas.valorNumerico) } : {}),
-      ...(p.ptog75g?.valorNumerico ? { ptog75g: String(p.ptog75g.valorNumerico) } : {}),
-      ...(p.vdrlSifilis?.resultadoTexto ? { sifilis1erTrim: p.vdrlSifilis.resultadoTexto } : {}),
-      ...(p.vih?.resultadoTexto ? { vih1erTrim: p.vih.resultadoTexto } : {}),
-      ...(p.estreptococoGrupoB?.resultadoTexto ? { estreptococoB: p.estreptococoGrupoB.resultadoTexto } : {}),
-      ...(p.urocultivo?.resultadoTexto ? { urocultivo1erTrim: p.urocultivo.resultadoTexto } : {}),
+    const nowIso = new Date().toISOString();
+    const updatedParaclinicos = { ...(materna.paraclinicos || {}) };
+
+    // Extraer valores numéricos o de texto limpios
+    const getVal = (item) => {
+      if (!item) return null;
+      if (typeof item === 'string') return item;
+      return item.valorNumerico ? String(item.valorNumerico) : (item.resultadoTexto || item.valor || null);
     };
+
+    const getTxt = (item) => {
+      if (!item) return null;
+      if (typeof item === 'string') return item;
+      return item.resultadoTexto || item.valor || (item.valorNumerico ? String(item.valorNumerico) : null);
+    };
+
+    const hbVal = getVal(p.hemoglobina);
+    const htoVal = getVal(p.hematocrito);
+    const plaqVal = getVal(p.plaquetas);
+    const glicVal = getVal(p.glicemiaEnAyunas);
+    const ptogVal = getVal(p.ptog75g);
+    const sifilisTxt = getTxt(p.vdrlSifilis);
+    const vihTxt = getTxt(p.vih);
+    const uroTxt = getTxt(p.urocultivo);
+    const stgbTxt = getTxt(p.estreptococoGrupoB);
+    const toxoIgGTxt = getTxt(p.toxoplasmaIgG);
+    const toxoIgMTxt = getTxt(p.toxoplasmaIgM);
+    const rubeolaTxt = getTxt(p.rubeolaIgG);
+    const chagasTxt = getTxt(p.chagas);
+
+    if (targetTrim === '1') {
+      if (hbVal) updatedParaclinicos.hemograma_HB = hbVal;
+      if (htoVal) updatedParaclinicos.hemograma_HCTO = htoVal;
+      if (plaqVal) updatedParaclinicos.hemograma_Plaquetas = plaqVal;
+      if (glicVal) updatedParaclinicos.glicemia = glicVal;
+      if (sifilisTxt) {
+        updatedParaclinicos.sifilis_Resultado = sifilisTxt;
+        updatedParaclinicos.sifilis_Fecha = nowIso;
+      }
+      if (vihTxt) {
+        updatedParaclinicos.vih_Resultado = vihTxt;
+        updatedParaclinicos.vih_Fecha = nowIso;
+      }
+      if (uroTxt) updatedParaclinicos.urocultivo = uroTxt;
+      if (toxoIgGTxt) updatedParaclinicos.igg_Toxoplasma = toxoIgGTxt;
+      if (toxoIgMTxt) updatedParaclinicos.igm_Toxoplasma = toxoIgMTxt;
+      if (rubeolaTxt) updatedParaclinicos.igg_Rubeola = rubeolaTxt;
+      if (chagasTxt) updatedParaclinicos.chagas_Resultado = chagasTxt;
+      if (p.grupoSanguineo) updatedParaclinicos.hemoclasificacion = `${p.grupoSanguineo} ${p.factorRh || ''}`.trim();
+    } else if (targetTrim === '2') {
+      if (hbVal) updatedParaclinicos.hemograma_HB = hbVal;
+      if (htoVal) updatedParaclinicos.hemograma_HCTO = htoVal;
+      if (plaqVal) updatedParaclinicos.hemograma_Plaquetas = plaqVal;
+      if (ptogVal) updatedParaclinicos.ptog_75gr = ptogVal;
+      if (sifilisTxt) updatedParaclinicos.sifilis_Resultado = sifilisTxt;
+      if (vihTxt) updatedParaclinicos.vih_Resultado = vihTxt;
+      if (uroTxt) updatedParaclinicos.urocultivo = uroTxt;
+    } else if (targetTrim === '3') {
+      if (hbVal) updatedParaclinicos.hemograma3_HB = hbVal;
+      if (htoVal) updatedParaclinicos.hemograma3_HCTO = htoVal;
+      if (plaqVal) updatedParaclinicos.hemograma3_Plaquetas = plaqVal;
+      if (sifilisTxt) {
+        updatedParaclinicos.sifilis3_Resultado = sifilisTxt;
+        updatedParaclinicos.sifilis3_Fecha = nowIso;
+      }
+      if (vihTxt) {
+        updatedParaclinicos.vih3_Resultado = vihTxt;
+        updatedParaclinicos.vih3_Fecha = nowIso;
+      }
+      if (stgbTxt) updatedParaclinicos.estreptococoB = stgbTxt;
+    }
 
     try {
       await api.put(`/maternas/${id}/paraclinicos`, updatedParaclinicos);
       setMaterna(prev => ({ ...prev, paraclinicos: updatedParaclinicos }));
-      notify('¡Paraclínicos y datos del PDF integrados con éxito!', 'success');
+      const trimLabels = { '1': '1er Trimestre', '2': '2do Trimestre', '3': '3er Trimestre' };
+      notify(`¡Paraclínicos asignados exitosamente al ${trimLabels[targetTrim]}!`, 'success');
     } catch (err) {
       console.error("Error guardando datos extraídos del PDF:", err);
       notify('Datos vinculados localmente a la historia clínica.', 'warning');
@@ -434,121 +730,273 @@ const MaternaDetail = () => {
             <PortalMaterna maternaData={materna} isPreview={true} />
           ) : (
             <div>
-        {/* Selector de Modo de Visualización (Cronológico vs 12 Categorías) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '5px', borderRadius: '16px' }}>
-            <button 
-              onClick={() => setViewMode('etapas')}
-              style={{
-                padding: '8px 16px', borderRadius: '12px', border: 'none',
-                background: viewMode === 'etapas' ? '#ffffff' : 'transparent',
-                color: viewMode === 'etapas' ? 'var(--primary-color)' : 'var(--text-muted)',
-                fontWeight: '950', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                boxShadow: viewMode === 'etapas' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
-              }}
-            >
-              <Layers size={16} /> VISTA CRONOLÓGICA POR ETAPAS DEL EMBARAZO
-            </button>
-            <button 
-              onClick={() => setViewMode('todas')}
-              style={{
-                padding: '8px 16px', borderRadius: '12px', border: 'none',
-                background: viewMode === 'todas' ? '#ffffff' : 'transparent',
-                color: viewMode === 'todas' ? 'var(--primary-color)' : 'var(--text-muted)',
-                fontWeight: '950', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                boxShadow: viewMode === 'todas' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
-              }}
-            >
-              <Filter size={16} /> VER TODAS LAS 12 CATEGORÍAS
-            </button>
-          </div>
-
-          {viewMode === 'etapas' && (
-            <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)' }}>
-              Ubicado automáticamente en la etapa actual de la gestante ({info.weeks} sem.)
-            </span>
-          )}
-        </div>
-
-      {/* LINEA DE TIEMPO / ETAPAS DEL EMBARAZO */}
-      {viewMode === 'etapas' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '1.5rem' }}>
-          {STAGES.map(stg => {
-            const isSelected = activeStage === stg.id;
-            return (
-              <motion.div
-                key={stg.id}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => {
-                  setActiveStage(stg.id);
-                  setActiveTab(stg.tabs[0].id);
-                }}
+          {/* Selector de Modo de Visualización (Cronológico vs 12 Categorías) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '5px', borderRadius: '16px' }}>
+              <button 
+                onClick={() => setViewMode('etapas')}
                 style={{
-                  padding: '1.2rem', borderRadius: '18px', cursor: 'pointer',
-                  background: isSelected ? stg.color : '#ffffff',
-                  color: isSelected ? '#ffffff' : 'var(--text-main)',
-                  border: isSelected ? `2px solid ${stg.color}` : '1px solid rgba(0,0,0,0.08)',
-                  boxShadow: isSelected ? `0 10px 24px ${stg.color}35` : '0 4px 12px rgba(0,0,0,0.02)',
-                  transition: 'all 0.25s ease'
+                  padding: '8px 16px', borderRadius: '12px', border: 'none',
+                  background: viewMode === 'etapas' ? '#ffffff' : 'transparent',
+                  color: viewMode === 'etapas' ? 'var(--primary-color)' : 'var(--text-muted)',
+                  fontWeight: '950', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: viewMode === 'etapas' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ 
-                    fontSize: '0.75rem', fontWeight: '950', 
-                    background: isSelected ? 'rgba(255,255,255,0.25)' : `${stg.color}15`, 
-                    color: isSelected ? '#ffffff' : stg.color,
-                    padding: '3px 10px', borderRadius: '12px' 
+                <Layers size={16} /> VISTA CRONOLÓGICA POR ETAPAS DEL EMBARAZO
+              </button>
+              <button 
+                onClick={() => setViewMode('todas')}
+                style={{
+                  padding: '8px 16px', borderRadius: '12px', border: 'none',
+                  background: viewMode === 'todas' ? '#ffffff' : 'transparent',
+                  color: viewMode === 'todas' ? 'var(--primary-color)' : 'var(--text-muted)',
+                  fontWeight: '950', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: viewMode === 'todas' ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
+                }}
+              >
+                <Filter size={16} /> VER TODAS LAS 12 CATEGORÍAS
+              </button>
+            </div>
+
+            {viewMode === 'etapas' && (
+              <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)' }}>
+                Ubicado automáticamente en la etapa actual de la gestante ({info.weeks} sem.)
+              </span>
+            )}
+          </div>
+
+          {/* LINEA DE TIEMPO / ETAPAS DEL EMBARAZO */}
+          {viewMode === 'etapas' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '1.5rem' }}>
+              {STAGES.map(stg => {
+                const isSelected = activeStage === stg.id;
+                return (
+                  <motion.div
+                    key={stg.id}
+                    whileHover={{ scale: 1.02 }}
+                    onClick={() => {
+                      setActiveStage(stg.id);
+                      setActiveTab(stg.tabs[0].id);
+                    }}
+                    style={{
+                      padding: '1.2rem', borderRadius: '18px', cursor: 'pointer',
+                      background: isSelected ? stg.color : '#ffffff',
+                      color: isSelected ? '#ffffff' : 'var(--text-main)',
+                      border: isSelected ? `2px solid ${stg.color}` : '1px solid rgba(0,0,0,0.08)',
+                      boxShadow: isSelected ? `0 10px 24px ${stg.color}35` : '0 4px 12px rgba(0,0,0,0.02)',
+                      transition: 'all 0.25s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ 
+                        fontSize: '0.75rem', fontWeight: '950', 
+                        background: isSelected ? 'rgba(255,255,255,0.25)' : `${stg.color}15`, 
+                        color: isSelected ? '#ffffff' : stg.color,
+                        padding: '3px 10px', borderRadius: '12px' 
+                      }}>
+                        {stg.subtitle}
+                      </span>
+                      {isSelected ? <CheckCircle2 size={18} color="#ffffff" /> : <Circle size={18} color="var(--text-muted)" />}
+                    </div>
+                    <h4 style={{ margin: '6px 0 0', fontSize: '0.95rem', fontWeight: '950', letterSpacing: '-0.3px' }}>
+                      {stg.title}
+                    </h4>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* VISTA TIPO TARJETAS DE LAS CATEGORÍAS CLÍNICAS */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '1.4rem' }}>
+            {(viewMode === 'etapas' ? currentStageObj.tabs : ALL_TABS).map(tab => {
+              const card = getCategoryCardData(tab.id, materna);
+              if (!card) return null;
+              return (
+                <motion.div
+                  key={card.id}
+                  whileHover={{ y: -5, boxShadow: '0 16px 30px rgba(0,0,0,0.08)' }}
+                  onClick={() => setActiveModalTab(card.id)}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '22px',
+                    border: '1px solid #e2e8f0',
+                    padding: '1.6rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justify: 'space-between',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.02)',
+                    transition: 'all 0.25s ease'
+                  }}
+                >
+                  {/* Top Line Accent */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: card.color }} />
+
+                  <div>
+                    {/* Header: Icon & Status Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+                      <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: `${card.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color }}>
+                        {card.icon}
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: '950', padding: '4px 10px', borderRadius: '12px', background: card.statusBg, color: card.statusColor }}>
+                        {card.statusText}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h4 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: '950', color: '#1e293b', letterSpacing: '-0.2px' }}>
+                      {card.title}
+                    </h4>
+
+                    {/* Summary Highlights List */}
+                    <div style={{ background: '#f8fafc', borderRadius: '14px', padding: '1rem', marginBottom: '1.2rem', border: '1px solid #f1f5f9' }}>
+                      {card.highlights.map((h, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', marginBottom: idx === card.highlights.length - 1 ? 0 : '8px' }}>
+                          <span style={{ color: '#64748b', fontWeight: '800' }}>{h.label}:</span>
+                          <span style={{ fontWeight: '950', color: h.color || '#1e293b', textAlign: 'right' }}>{h.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveModalTab(card.id); }}
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '14px',
+                      border: `1.5px solid ${card.color}`,
+                      background: card.color,
+                      color: '#ffffff',
+                      fontWeight: '950',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: `0 4px 12px ${card.color}35`,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Edit3 size={16} /> DILIGENCIAR / EDITAR
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* MODAL PANTALLA COMPLETA PARA DILIGENCIAMIENTO */}
+          <AnimatePresence>
+            {activeModalTab && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 9999,
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  backdropFilter: 'blur(10px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '1.2rem'
+                }}
+              >
+                <motion.div
+                  initial={{ scale: 0.96, y: 25 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.96, y: 25 }}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '26px',
+                    width: '96vw',
+                    height: '94vh',
+                    maxWidth: '1600px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 60px -15px rgba(0,0,0,0.5)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Header del Modal */}
+                  <div style={{
+                    padding: '1.2rem 2.2rem',
+                    borderBottom: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#f8fafc'
                   }}>
-                    {stg.subtitle}
-                  </span>
-                  {isSelected ? <CheckCircle2 size={18} color="#ffffff" /> : <Circle size={18} color="var(--text-muted)" />}
-                </div>
-                <h4 style={{ margin: '6px 0 0', fontSize: '0.95rem', fontWeight: '950', letterSpacing: '-0.3px' }}>
-                  {stg.title}
-                </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ background: 'var(--primary-color)', color: 'white', padding: '10px', borderRadius: '14px', display: 'flex' }}>
+                        <FileEdit size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: '#1e293b' }}>
+                          {CATEGORY_TITLES[activeModalTab] || 'Diligenciamiento Clínico'}
+                        </h3>
+                        <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: '700' }}>
+                          Paciente: <strong style={{ color: '#0f172a' }}>{materna?.nombres} {materna?.apellidos}</strong> ({materna?.tipoIdentificacion}: {materna?.numeroIdentificacion})
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setActiveModalTab(null)}
+                      style={{
+                        background: '#fee2e2',
+                        border: 'none',
+                        borderRadius: '14px',
+                        width: '42px',
+                        height: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: '#ef4444',
+                        boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#ffffff'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
+                      title="Cerrar Modal"
+                    >
+                      <X size={22} />
+                    </button>
+                  </div>
+
+                  {/* Body del Modal con Scrollbar */}
+                  <div style={{ padding: '2.2rem 2.8rem', overflowY: 'auto', flex: 1 }}>
+                    {activeModalTab === 'perfil' && <PerfilSection materna={materna} onSave={(d) => { handleUpdateClinical('gestante', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'antecedentes' && <AntecedentesSection data={materna.antecedentes} onSave={(d) => { handleUpdateClinical('antecedentes', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'ingreso' && <IngresoSection materna={materna} onSave={(payload) => { handleUpdateClinical(payload); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'nutricion' && <NutricionSection data={materna.ingresoCPN} onSave={(d) => { handleUpdateClinical('ingresoCPN', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'controles' && <ControlesSection gestanteId={id} data={materna.controles} refresh={fetchMaterna} />}
+                    {activeModalTab === 'paraclinicos' && <ParaclinicosSection materna={materna} data={materna.paraclinicos} activeStage={activeStage} onSave={(d) => { handleUpdateClinical('paraclinicos', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'interdisciplinario' && <InterdisciplinarioSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => { handleUpdateClinical('egresoYPosparto', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'vacunas' && <VacunasSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => { handleUpdateClinical('egresoYPosparto', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'cursos' && <CursosSection data={materna.egresoYPosparto} onSave={(d) => { handleUpdateClinical('egresoYPosparto', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'ive_lactancia' && <IveLactanciaSection data={materna.egresoYPosparto} onSave={(d) => { handleUpdateClinical('egresoYPosparto', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'posparto' && <PospartoSection data={materna.egresoYPosparto} onSave={(d) => { handleUpdateClinical('egresoYPosparto', d); setActiveModalTab(null); }} saving={saving} />}
+                    {activeModalTab === 'telefonico' && <SeguimientoTelSection gestanteId={id} data={materna.seguimientosTelef} refresh={fetchMaterna} />}
+                    {activeModalTab === 'calendario' && <MedicalEvents maternaId={id} />}
+                  </div>
+                </motion.div>
               </motion.div>
-            );
-          })}
+            )}
+          </AnimatePresence>
         </div>
-      )}
-
-      {/* Sub-Tabs Nav de la Etapa Seleccionada o Todas */}
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '1.2rem', scrollbarWidth: 'none' }}>
-        {(viewMode === 'etapas' ? currentStageObj.tabs : ALL_TABS).map(tab => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-              padding: '11px 18px', borderRadius: '14px', border: '1px solid',
-              borderColor: isActive ? 'var(--primary-color)' : 'rgba(0,0,0,0.08)',
-              background: isActive ? 'var(--primary-color)' : '#ffffff',
-              color: isActive ? '#ffffff' : 'var(--text-muted)',
-              fontWeight: '900', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px',
-              whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.25s ease',
-              boxShadow: isActive ? '0 6px 16px rgba(16, 185, 129, 0.2)' : 'none'
-            }}>
-              {tab.icon} {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Container del Formulario según Tab Activa */}
-      <div className="organic-card" style={{ padding: '2.2rem', minHeight: '650px', borderRadius: '24px', background: '#ffffff', boxShadow: '0 10px 30px rgba(0,0,0,0.04)' }}>
-        {activeTab === 'perfil' && <PerfilSection materna={materna} onSave={(d) => handleUpdateClinical('gestante', d)} saving={saving} />}
-        {activeTab === 'antecedentes' && <AntecedentesSection data={materna.antecedentes} onSave={(d) => handleUpdateClinical('antecedentes', d)} saving={saving} />}
-        {activeTab === 'ingreso' && <IngresoSection data={materna.ingresoCPN} onSave={(d) => handleUpdateClinical('ingresoCPN', d)} saving={saving} />}
-        {activeTab === 'nutricion' && <NutricionSection data={materna.ingresoCPN} onSave={(d) => handleUpdateClinical('ingresoCPN', d)} saving={saving} />}
-        {activeTab === 'controles' && <ControlesSection gestanteId={id} data={materna.controles} refresh={fetchMaterna} />}
-        {activeTab === 'paraclinicos' && <ParaclinicosSection materna={materna} data={materna.paraclinicos} activeStage={activeStage} onSave={(d) => handleUpdateClinical('paraclinicos', d)} saving={saving} />}
-        {activeTab === 'interdisciplinario' && <InterdisciplinarioSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'vacunas' && <VacunasSection data={materna.egresoYPosparto} activeStage={activeStage} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'cursos' && <CursosSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'ive_lactancia' && <IveLactanciaSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'posparto' && <PospartoSection data={materna.egresoYPosparto} onSave={(d) => handleUpdateClinical('egresoYPosparto', d)} saving={saving} />}
-        {activeTab === 'telefonico' && <SeguimientoTelSection gestanteId={id} data={materna.seguimientosTelef} refresh={fetchMaterna} />}
-        {activeTab === 'calendario' && <MedicalEvents maternaId={id} />}
-      </div>
-    </div>
   )}
   </>
   )}
@@ -568,11 +1016,11 @@ const MaternaDetail = () => {
 const PerfilSection = ({ materna, onSave, saving }) => {
   const [local, setLocal] = useState(materna || {});
   return (
-    <div style={{ maxWidth: '1000px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <User size={22} /> Categoría 1: Datos Demográficos y Enfoque Diferencial
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
         {[
           { f: 'region', label: 'REGIÓN' },
           { f: 'ipsAtencion', label: 'IPS DE ATENCIÓN' },
@@ -602,9 +1050,11 @@ const PerfilSection = ({ materna, onSave, saving }) => {
           </div>
         ))}
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR DATOS DEMOGRÁFICOS'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR DATOS DEMOGRÁFICOS'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -612,7 +1062,7 @@ const PerfilSection = ({ materna, onSave, saving }) => {
 const AntecedentesSection = ({ data, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
   return (
-    <div style={{ maxWidth: '1000px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <ClipboardList size={22} /> Categoría 2 y 3: Antecedentes Ginecoobstétricos, Personales y Familiares
       </h3>
@@ -641,61 +1091,389 @@ const AntecedentesSection = ({ data, onSave, saving }) => {
         <textarea rows={3} value={local.antecedentesFamiliares || ''} onChange={e => setLocal({...local, antecedentesFamiliares: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} />
       </div>
 
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ANTECEDENTES'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ANTECEDENTES'}
+        </button>
+      </div>
     </div>
   );
 };
 
-const IngresoSection = ({ data, onSave, saving }) => {
-  const [local, setLocal] = useState(data || {});
+const IngresoSection = ({ materna, onSave, saving }) => {
+  const [ingreso, setIngreso] = useState(materna?.ingresoCPN || {});
+  const [para, setPara] = useState(materna?.paraclinicos || {});
+
+  useEffect(() => {
+    setIngreso(materna?.ingresoCPN || {});
+    setPara(materna?.paraclinicos || {});
+  }, [materna]);
+
+  const handleSave = () => {
+    onSave({
+      ingresoCPN: ingreso,
+      paraclinicos: para
+    });
+  };
+
   return (
-    <div style={{ maxWidth: '1000px' }}>
-      <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Clock size={22} /> Categoría 2: Etapa Preconcepcional e Inscripción al CPN
-      </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>FECHA INSCRIPCIÓN CPN</label>
-          <input type="date" value={local.fechaInscripcionCPN?.split('T')[0] || ''} onChange={e => setLocal({...local, fechaInscripcionCPN: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
+          <h3 style={{ fontSize: '1.35rem', fontWeight: '950', margin: 0, color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Clock size={24} /> Categoría 2: Ingreso al Control Prenatal (CPN) y Evaluación Inicial
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-muted)' }}>
+            Diligenciamiento de los 19 campos clave exigidos por la norma técnica y la matriz de seguimiento FOMAG.
+          </p>
         </div>
-        <div>
-          <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>F.U.R (FECHA ÚLTIMA REGLA)</label>
-          <input type="date" value={local.fur?.split('T')[0] || ''} onChange={e => setLocal({...local, fur: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>F.P.P (FECHA PROBABLE PARTO)</label>
-          <input type="date" value={local.fpp?.split('T')[0] || ''} onChange={e => setLocal({...local, fpp: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
-        </div>
-        {[
-          { f: 'atencionPreconcepcionalPlan', label: 'ATENCIÓN PRECONCEPCIONAL (PLANEADO)' },
-          { f: 'asesoriaMetodoPrevio', label: 'ASESORÍA MÉTODO PRE-EVENTO' },
-          { f: 'acidoFolicoPrevio', label: 'ÁCIDO FÓLICO PREVIO (3 MESES)' },
-          { f: 'citasPreconcepcionales', label: 'NO. CITAS PRECONCEPCIONALES' },
-          { f: 'edadGestacionalInicio', label: 'EDAD GESTACIONAL AL INGRESO' },
-          { f: 'embarazoDeseado', label: 'EMBARAZO DESEADO' },
-          { f: 'redApoyo', label: 'RED DE APOYO' },
-          { f: 'tamizajeViolencia', label: 'TAMIZAJE VIOLENCIA' },
-          { f: 'tamizajeDepresionHerrera', label: 'TAMIZAJE DEPRESIÓN HERRERA' },
-          { f: 'clasificacionRiesgoActual', label: 'CLASIFICACIÓN RIESGO ACT' },
-          { f: 'diagnosticoARO_Actualizado', label: 'DIAGNÓSTICO ESCRITO ARO' },
-          { f: 'riesgoPsicosocial', label: 'RIESGO PSICOSOCIAL' },
-          { f: 'atributoRiesgoPsicosocial', label: 'ATRIBUTO RIESGO PSICOSOCIAL' },
-          { f: 'riesgoHipertension', label: 'RIESGO HIPERTENSIÓN' },
-          { f: 'riesgoPreeclampsia', label: 'RIESGO PREECLAMPSIA' },
-          { f: 'riesgoTromboembolico', label: 'RIESGO TROMBOEMBÓLICO' },
-          { f: 'prescripcionASA', label: 'PRESCRIPCIÓN ASA' }
-        ].map(i => (
-          <div key={i.f}>
-            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>{i.label}</label>
-            <input type="text" value={local[i.f] || ''} onChange={e => setLocal({...local, [i.f]: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} />
-          </div>
-        ))}
+
+        <button 
+          onClick={handleSave} 
+          disabled={saving} 
+          style={{ 
+            padding: '12px 24px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', 
+            fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+            boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' 
+          }}
+        >
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR INGRESO CPN'}
+        </button>
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR INGRESO CPN'}
-      </button>
+
+      {/* BLOQUE 1: DATOS DE INSCRIPCIÓN Y EDAD GESTACIONAL */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '1.4rem', marginBottom: '1.5rem' }}>
+        <h4 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: '950', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Calendar size={18} color="#2563eb" /> 1. Inscripción y Edades Gestacionales
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FECHA DE INSCRIPCIÓN AL CPN POR MÉDICO GENERAL (DD/MM/AAAA)
+            </label>
+            <input 
+              type="date" 
+              value={ingreso.fechaInscripcionCPN?.split('T')[0] || ''} 
+              onChange={e => setIngreso({...ingreso, fechaInscripcionCPN: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              EDAD GESTACIONAL AL INICIO DE CPN (INGRESO AL CPN)
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: 8 semanas"
+              value={ingreso.edadGestacionalInicio || ''} 
+              onChange={e => setIngreso({...ingreso, edadGestacionalInicio: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FUR (FECHA ÚLTIMA REGLA)
+            </label>
+            <input 
+              type="date" 
+              value={ingreso.fur?.split('T')[0] || ''} 
+              onChange={e => setIngreso({...ingreso, fur: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              EDAD GESTACIONAL ACTUAL
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: 12.4 semanas"
+              value={ingreso.edadGestacionalActual || ''} 
+              onChange={e => setIngreso({...ingreso, edadGestacionalActual: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              EDAD GESTACIONAL POR ECOGRAFÍA
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: 11.2 semanas"
+              value={ingreso.edadGestacionalEco || ''} 
+              onChange={e => setIngreso({...ingreso, edadGestacionalEco: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FPP (FECHA PROBABLE DE PARTO)
+            </label>
+            <input 
+              type="date" 
+              value={ingreso.fpp?.split('T')[0] || ''} 
+              onChange={e => setIngreso({...ingreso, fpp: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* BLOQUE 2: TAMIZAJES PSICOSOCIALES Y EMBARAZO */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '1.4rem', marginBottom: '1.5rem' }}>
+        <h4 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: '950', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Heart size={18} color="#ec4899" /> 2. Aspectos Psicosociales y Red de Apoyo
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              EMBARAZO DESEADO
+            </label>
+            <select 
+              value={ingreso.embarazoDeseado || ''} 
+              onChange={e => setIngreso({...ingreso, embarazoDeseado: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }}
+            >
+              <option value="">-- Seleccionar --</option>
+              <option value="SI">SI</option>
+              <option value="NO">NO</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              ¿TIENE RED DE APOYO FAMILIAR/SOCIAL?
+            </label>
+            <select 
+              value={ingreso.redApoyo || ''} 
+              onChange={e => setIngreso({...ingreso, redApoyo: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }}
+            >
+              <option value="">-- Seleccionar --</option>
+              <option value="SI">SI</option>
+              <option value="NO">NO</option>
+              <option value="BUENA">BUENA</option>
+              <option value="DEFICIENTE">DEFICIENTE</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              SE REALIZÓ TAMIZAJE DE VIOLENCIA
+            </label>
+            <select 
+              value={ingreso.tamizajeViolencia || ''} 
+              onChange={e => setIngreso({...ingreso, tamizajeViolencia: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }}
+            >
+              <option value="">-- Seleccionar --</option>
+              <option value="SI">SI</option>
+              <option value="NO">NO</option>
+              <option value="POSITIVO">POSITIVO</option>
+              <option value="NEGATIVO">NEGATIVO</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              SE REALIZÓ TAMIZAJE DE DEPRESIÓN (ESCALA HERRERA Y HURTADO)
+            </label>
+            <select 
+              value={ingreso.tamizajeDepresionHerrera || ''} 
+              onChange={e => setIngreso({...ingreso, tamizajeDepresionHerrera: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }}
+            >
+              <option value="">-- Seleccionar --</option>
+              <option value="SI">SI</option>
+              <option value="NO">NO</option>
+              <option value="SIN RIESGO">SIN RIESGO</option>
+              <option value="CON RIESGO">CON RIESGO</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* BLOQUE 3: TAMIZAJES INFECCIOSOS E INMUNOLÓGICOS INICIALES */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '1.4rem', marginBottom: '1.5rem' }}>
+        <h4 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: '950', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Microscope size={18} color="#0284c7" /> 3. Tamizajes Infecciosos al Ingreso (Pruebas Rápidas & Fechas)
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              TAMIZAJE Y RESULTADO DE SÍFILIS
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: Negativo / No Reactivo / Reactivo 1:8"
+              value={para.sifilis_Resultado || ''} 
+              onChange={e => setPara({...para, sifilis_Resultado: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FECHA DE RESULTADO DE SÍFILIS
+            </label>
+            <input 
+              type="date" 
+              value={para.sifilis_Fecha?.split('T')[0] || ''} 
+              onChange={e => setPara({...para, sifilis_Fecha: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              TAMIZACIÓN Y RESULTADO DE PRUEBA RÁPIDA DE VIH
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: No Reactivo / Reactivo"
+              value={para.vih_Resultado || ''} 
+              onChange={e => setPara({...para, vih_Resultado: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FECHA DE RESULTADO VIH
+            </label>
+            <input 
+              type="date" 
+              value={para.vih_Fecha?.split('T')[0] || ''} 
+              onChange={e => setPara({...para, vih_Fecha: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              TAMIZAJE Y RESULTADO DE PRUEBA RÁPIDA DE HBSAG
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: No Reactivo / Reactivo"
+              value={para.hbsag_Resultado || ''} 
+              onChange={e => setPara({...para, hbsag_Resultado: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              FECHA DE RESULTADOS DE HBSAG
+            </label>
+            <input 
+              type="date" 
+              value={para.hbsag_Fecha?.split('T')[0] || ''} 
+              onChange={e => setPara({...para, hbsag_Fecha: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              TAMIZAJE DE CHAGAS
+            </label>
+            <input 
+              type="text" 
+              placeholder="Ej: Negativo / Positivo"
+              value={para.chagas_Resultado || ''} 
+              onChange={e => setPara({...para, chagas_Resultado: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* BLOQUE 4: CLASIFICACIÓN DE RIESGO OBSTÉTRICO Y DIAGNÓSTICO ARO */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '1.4rem', marginBottom: '1.5rem' }}>
+        <h4 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: '950', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ShieldAlert size={18} color="#d97706" /> 4. Clasificación de Riesgo Obstétrico & Diagnóstico ARO
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem', marginBottom: '1.2rem' }}>
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+              CLASIFICACIÓN DEL RIESGO OBSTÉTRICO ACTUAL
+            </label>
+            <select 
+              value={ingreso.clasificacionRiesgoActual || ''} 
+              onChange={e => setIngreso({...ingreso, clasificacionRiesgoActual: e.target.value})} 
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }}
+            >
+              <option value="">-- Seleccionar Riesgo --</option>
+              <option value="BAJO RIESGO">BAJO RIESGO (BRO)</option>
+              <option value="ALTO RIESGO">ALTO RIESGO (ARO)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>
+            DIAGNÓSTICO ESCRITO DE ARO (ACTUALIZADO)
+          </label>
+          <textarea 
+            rows={3} 
+            placeholder="Escriba los diagnósticos de Alto Riesgo Obstétrico (ej: Preeclampsia previa, Diabetes Gestacional, Edad Materna Avanzada...)"
+            value={ingreso.diagnosticoARO_Actualizado || ''} 
+            onChange={e => setIngreso({...ingreso, diagnosticoARO_Actualizado: e.target.value})} 
+            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+          />
+        </div>
+      </div>
+
+      {/* BLOQUE 5: DATOS PRECONCEPCIONALES Y EVALUACIÓN COMPLEMENTARIA */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '1.4rem', marginBottom: '2rem' }}>
+        <h4 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: '950', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Activity size={18} color="#10b981" /> 5. Etapa Preconcepcional y Factores Complementarios
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.2rem' }}>
+          {[
+            { f: 'atencionPreconcepcionalPlan', label: 'ATENCIÓN PRECONCEPCIONAL (PLANEADA)' },
+            { f: 'asesoriaMetodoPrevio', label: 'ASESORÍA MÉTODO PRE-EVENTO' },
+            { f: 'acidoFolicoPrevio', label: 'ÁCIDO FÓLICO PREVIO (3 MESES)' },
+            { f: 'citasPreconcepcionales', label: 'NO. CITAS PRECONCEPCIONALES' },
+            { f: 'riesgoPsicosocial', label: 'RIESGO PSICOSOCIAL' },
+            { f: 'atributoRiesgoPsicosocial', label: 'ATRIBUTO RIESGO PSICOSOCIAL' },
+            { f: 'riesgoHipertension', label: 'RIESGO HIPERTENSIÓN' },
+            { f: 'riesgoPreeclampsia', label: 'RIESGO PREECLAMPSIA' },
+            { f: 'riesgoTromboembolico', label: 'RIESGO TROMBOEMBÓLICO' },
+            { f: 'prescripcionASA', label: 'PRESCRIPCIÓN ASA (ÁCIDO ACETILSALICÍLICO)' }
+          ].map(i => (
+            <div key={i.f}>
+              <label style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--text-muted)', marginBottom: '5px', display: 'block' }}>{i.label}</label>
+              <input 
+                type="text" 
+                value={ingreso[i.f] || ''} 
+                onChange={e => setIngreso({...ingreso, [i.f]: e.target.value})} 
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', fontWeight: '700' }} 
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button 
+          onClick={handleSave} 
+          disabled={saving} 
+          style={{ 
+            padding: '12px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', 
+            fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+            boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' 
+          }}
+        >
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR INGRESO CPN'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -703,11 +1481,11 @@ const IngresoSection = ({ data, onSave, saving }) => {
 const NutricionSection = ({ data, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <Activity size={22} /> Categoría 4: Medidas Antropométricas y Nutrición
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem', marginBottom: '2rem' }}>
         {[
           { f: 'pesoPregestacional_kg', label: 'PESO PREGESTACIONAL (KG)' },
           { f: 'talla_cm', label: 'TALLA (CM)' },
@@ -721,9 +1499,11 @@ const NutricionSection = ({ data, onSave, saving }) => {
           </div>
         ))}
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR NUTRICIÓN'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR NUTRICIÓN'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1100,13 +1880,15 @@ const ParaclinicosSection = ({ materna, data, activeStage, onSave, saving }) => 
         )}
       </div>
 
-      <button 
-        onClick={() => onSave(local)} 
-        disabled={saving} 
-        style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}
-      >
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR PARACLÍNICOS'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button 
+          onClick={() => onSave(local)} 
+          disabled={saving} 
+          style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}
+        >
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR PARACLÍNICOS'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1129,7 +1911,7 @@ const InterdisciplinarioSection = ({ data, activeStage, onSave, saving }) => {
   );
 
   return (
-    <div style={{ maxWidth: '1100px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '0.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <UserCheck size={22} /> Categoría 7: Consultas Interdisciplinarias por Trimestres (Especialidades)
       </h3>
@@ -1186,9 +1968,11 @@ const InterdisciplinarioSection = ({ data, activeStage, onSave, saving }) => {
 
       </div>
 
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ATENCIONES INTERDISCIPLINARIAS'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ATENCIONES INTERDISCIPLINARIAS'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1211,7 +1995,7 @@ const VacunasSection = ({ data, activeStage, onSave, saving }) => {
   );
 
   return (
-    <div style={{ maxWidth: '1100px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '0.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <Syringe size={22} /> Categoría 8: Esquema de Vacunación Prenatal por Trimestres
       </h3>
@@ -1256,9 +2040,11 @@ const VacunasSection = ({ data, activeStage, onSave, saving }) => {
 
       </div>
 
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ESQUEMA VACUNACIÓN'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '16px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--primary-glow) 0 6px 18px' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR ESQUEMA VACUNACIÓN'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1266,7 +2052,7 @@ const VacunasSection = ({ data, activeStage, onSave, saving }) => {
 const CursosSection = ({ data, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <BookOpen size={22} /> Categoría 9: Cursos de Maternidad y Paternidad (7 Encuentros)
       </h3>
@@ -1281,9 +2067,11 @@ const CursosSection = ({ data, onSave, saving }) => {
           );
         })}
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR CURSOS MATERNIDAD'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR CURSOS MATERNIDAD'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1291,7 +2079,7 @@ const CursosSection = ({ data, onSave, saving }) => {
 const IveLactanciaSection = ({ data, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <ShieldAlert size={22} /> Categoría 10: IVE, Lactancia & Eventos de Notificación
       </h3>
@@ -1325,9 +2113,11 @@ const IveLactanciaSection = ({ data, onSave, saving }) => {
           <input type="text" value={local.infeccionZika || ''} onChange={e => setLocal({...local, infeccionZika: e.target.value})} style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
         </div>
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR IVE & NOTIFICACIÓN'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR IVE & NOTIFICACIÓN'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1335,7 +2125,7 @@ const IveLactanciaSection = ({ data, onSave, saving }) => {
 const PospartoSection = ({ data, onSave, saving }) => {
   const [local, setLocal] = useState(data || {});
   return (
-    <div style={{ maxWidth: '1000px' }}>
+    <div style={{ width: '100%' }}>
       <h3 style={{ fontSize: '1.4rem', fontWeight: '950', marginBottom: '1.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <Baby size={22} /> Categoría 11: Posparto, Recién Nacido y Planificación
       </h3>
@@ -1363,9 +2153,11 @@ const PospartoSection = ({ data, onSave, saving }) => {
           </div>
         ))}
       </div>
-      <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '12px 26px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR REGISTRO POSPARTO'}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+        <button onClick={() => onSave(local)} disabled={saving} style={{ padding: '14px 28px', borderRadius: '14px', background: 'var(--primary-color)', color: 'white', fontWeight: '950', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }}>
+          <Save size={18} /> {saving ? 'GUARDANDO...' : 'GUARDAR REGISTRO POSPARTO'}
+        </button>
+      </div>
     </div>
   );
 };

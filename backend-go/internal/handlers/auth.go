@@ -28,7 +28,7 @@ func Login(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := config.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+	if err := config.DB.Where("LOWER(email) = LOWER(?)", strings.TrimSpace(req.Email)).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
@@ -83,6 +83,7 @@ func Login(c *gin.Context) {
 			"nombre":     user.Nombre,
 			"email":      user.Email,
 			"rol":        user.Rol,
+			"ipsId":      user.IPSID,
 			"gestanteId": gestanteID,
 		},
 	})
@@ -96,8 +97,8 @@ func GetMe(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := config.DB.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+	if err := config.DB.Preload("IPS").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no encontrado u obsoleto"})
 		return
 	}
 
@@ -116,6 +117,8 @@ func GetMe(c *gin.Context) {
 		"nombre":     user.Nombre,
 		"email":      user.Email,
 		"rol":        user.Rol,
+		"ipsId":      user.IPSID,
+		"ips":        user.IPS,
 		"gestanteId": gestanteID,
 	})
 }

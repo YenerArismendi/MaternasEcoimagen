@@ -14,6 +14,7 @@ import Maternas from './pages/Maternas';
 import MaternaDetail from './pages/MaternaDetail';
 import Paquetes from './pages/Paquetes';
 import Anuncios from './pages/Anuncios';
+import IPSManagement from './pages/IPSManagement';
 
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationSystem from './components/NotificationSystem';
@@ -38,7 +39,14 @@ function App() {
                 </Route>
               </Route>
 
-              {/* Rutas solo ADMIN */}
+              {/* Rutas solo SUPERADMIN */}
+              <Route element={<ProtectedRoute superAdminOnly />}>
+                <Route element={<Layout />}>
+                  <Route path="/ips" element={<IPSManagement />} />
+                </Route>
+              </Route>
+
+              {/* Rutas ADMIN y SUPERADMIN */}
               <Route element={<ProtectedRoute adminOnly />}>
                 <Route element={<Layout />}>
                   <Route path="/usuarios" element={<Users />} />

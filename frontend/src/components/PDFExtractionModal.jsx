@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   FileText, Upload, CheckCircle, AlertTriangle, XCircle, 
-  User, Activity, ClipboardCheck, Sparkles, RefreshCw, X, ArrowRight, Settings
+  User, Activity, ClipboardCheck, Sparkles, RefreshCw, X, ArrowRight, Settings, Calendar
 } from 'lucide-react';
 import api from '../api';
 
@@ -11,6 +11,7 @@ const PDFExtractionModal = ({ isOpen, onClose, onApplyData, gestanteNombre }) =>
   const [extractedData, setExtractedData] = useState(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('resumen'); // 'resumen' | 'paraclinicos' | 'texto'
+  const [targetTrimestre, setTargetTrimestre] = useState('auto'); // 'auto' | '1' | '2' | '3'
   const [editableSections, setEditableSections] = useState({
     evolucionClinica: '',
     diagnostico: '',
@@ -53,6 +54,17 @@ const PDFExtractionModal = ({ isOpen, onClose, onApplyData, gestanteNombre }) =>
 
       const extracted = res.data.data;
       setExtractedData(extracted);
+
+      // Auto-selección inteligente del trimestre según semanas de gestación del PDF (si viene especificado)
+      if (extracted.paciente?.semanasGestacion) {
+        const sem = extracted.paciente.semanasGestacion;
+        if (sem <= 12) setTargetTrimestre('1');
+        else if (sem <= 26) setTargetTrimestre('2');
+        else setTargetTrimestre('3');
+      } else {
+        setTargetTrimestre('auto');
+      }
+
       setEditableSections({
         evolucionClinica: extracted.seccionesTexto?.evolucionClinica || '',
         diagnostico: extracted.seccionesTexto?.diagnostico || '',
@@ -73,6 +85,7 @@ const PDFExtractionModal = ({ isOpen, onClose, onApplyData, gestanteNombre }) =>
     if (!extractedData) return;
     const finalPayload = {
       ...extractedData,
+      targetTrimestre,
       seccionesTexto: {
         ...extractedData.seccionesTexto,
         ...editableSections
@@ -269,6 +282,59 @@ const PDFExtractionModal = ({ isOpen, onClose, onApplyData, gestanteNombre }) =>
           {/* Results extracted */}
           {extractedData && (
             <div>
+              {/* Tarjeta de Selección de Trimestre Destino */}
+              <div style={{
+                background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                border: '1.5px solid #bae6fd',
+                borderRadius: '16px',
+                padding: '0.9rem 1.25rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Calendar size={16} /> Trimestre Destino para Vincular Resultados:
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#0284c7', marginTop: '2px', fontWeight: '600' }}>
+                    Los paraclínicos repetitivos (Hemograma, VIH, Sífilis, etc.) se asignarán a este trimestre.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'auto', label: 'Auto (Por Semanas)' },
+                    { id: '1', label: '🌱 1er Trim (Sem 1-12)' },
+                    { id: '2', label: '🌷 2do Trim (Sem 13-26)' },
+                    { id: '3', label: '🌸 3er Trim (Sem 27+)' }
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTargetTrimestre(t.id)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid',
+                        borderColor: targetTrimestre === t.id ? '#0284c7' : '#cbd5e1',
+                        background: targetTrimestre === t.id ? '#0284c7' : '#ffffff',
+                        color: targetTrimestre === t.id ? '#ffffff' : '#475569',
+                        fontSize: '0.78rem',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        boxShadow: targetTrimestre === t.id ? '0 2px 8px rgba(2, 132, 199, 0.3)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Top Selector Tabs */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', pb: '8px' }}>
                 <button

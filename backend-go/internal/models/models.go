@@ -10,6 +10,8 @@ type User struct {
 	Email     string    `gorm:"unique;not null" json:"email"`
 	Password  string    `gorm:"not null" json:"-"`
 	Rol       string    `gorm:"default:'ENFERMERA'" json:"rol"`
+	IPSID     *uint     `gorm:"column:ips_id" json:"ipsId"`
+	IPS       *IPS      `gorm:"foreignKey:IPSID;references:ID" json:"ips,omitempty"`
 	Activo    bool      `gorm:"default:true" json:"activo"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -19,6 +21,8 @@ type Gestante struct {
 	ID                       uint                    `gorm:"primaryKey" json:"id"`
 	Consecutivo              *string                 `json:"consecutivo"`
 	Region                   *string                 `json:"region"`
+	IPSID                    *uint                   `gorm:"column:ips_id" json:"ipsId"`
+	IPS                      *IPS                    `gorm:"foreignKey:IPSID" json:"ips,omitempty"`
 	IpsAtencion              *string                 `json:"ipsAtencion"`
 	CodigoHabilitacionIPS    *string                 `json:"codigoHabilitacionIPS"`
 	Departamento             *string                 `json:"departamento"`
@@ -401,4 +405,18 @@ type LabParam struct {
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
+
+// ─── Instituciones Prestadoras de Salud (IPS) ──────────────────────────────
+
+type IPS struct {
+	ID                 uint      `gorm:"primaryKey" json:"id"`
+	Nombre             string    `gorm:"not null" json:"nombre"`
+	CodigoHabilitacion string    `gorm:"unique;not null" json:"codigoHabilitacion"`
+	Departamento       string    `json:"departamento"`
+	Municipio          string    `json:"municipio"`
+	Activa             bool      `gorm:"default:true" json:"activa"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+}
+
 

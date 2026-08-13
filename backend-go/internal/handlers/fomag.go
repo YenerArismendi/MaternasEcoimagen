@@ -254,7 +254,7 @@ func generateFomagExcelGo(gestantes []models.Gestante) ([]byte, error) {
 	setHeader("FK10", "MICRONUTRIENTES", "FN10")
 	setHeader("FO10", "RESULTADO TOXOPLASMA IGM DE CONTROL MENSUAL")
 	setHeader("FQ10", "HEMOGRAMA", "FS10")
-	setHeader("FT10", "RESULTADO PRUEBA DE TOLERANCIA A LA GLUCOSA(PTOG)CON 75 GR DE GLUCOSA")
+	setHeader("FT10", "RESULTADO PRUEBA DE TOLERANCIA A LA GLUCOSA(PTOG)CON 75 GR DE GLUCOSA (SEM 24 y 28 DE GESTACIÒN)")
 	setHeader("FU10", "TAMIZACION Y RESULTADO DE PRUEBA RAPIDA DE VIH")
 	setHeader("FV10", "FECHA DE PRUEBA RAPIDA DE VIH")
 	setHeader("FW10", "TAMIZAJE Y RESULTADO DE SIFILIS")
@@ -852,17 +852,34 @@ func generateFomagExcelGo(gestantes []models.Gestante) ([]byte, error) {
 }
 
 func ExportFomagAll(c *gin.Context) {
-	var gestantes []models.Gestante
-	err := config.DB.Preload("CreadaPor").
+	userIDVal, exists := c.Get("userId")
+	var currentUser models.User
+	if exists {
+		if uid, ok := userIDVal.(uint); ok {
+			config.DB.Preload("IPS").First(&currentUser, uid)
+		}
+	}
+
+	query := config.DB.Preload("CreadaPor").
+		Preload("IPS").
 		Preload("Antecedentes").
 		Preload("IngresoCPN").
 		Preload("Controles").
 		Preload("Paraclinicos").
 		Preload("EgresoYPosparto").
-		Preload("SeguimientosTelef").
-		Find(&gestantes).Error
+		Preload("SeguimientosTelef")
 
-	if err != nil {
+	if currentUser.Rol != "SUPERADMIN" && currentUser.Rol != "SUPER_ROOT" && currentUser.IPSID != nil && *currentUser.IPSID > 0 {
+		if currentUser.IPS != nil {
+			query = query.Where("ips_id = ? OR ips_atencion = ? OR codigo_habilitacion_ips = ? OR codigo_habilitacion_ip_s = ?",
+				*currentUser.IPSID, currentUser.IPS.Nombre, currentUser.IPS.CodigoHabilitacion, currentUser.IPS.CodigoHabilitacion)
+		} else {
+			query = query.Where("ips_id = ?", *currentUser.IPSID)
+		}
+	}
+
+	var gestantes []models.Gestante
+	if err := query.Find(&gestantes).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al consultar gestantes para FOMAG"})
 		return
 	}
@@ -917,7 +934,10 @@ func ExportFomagSingle(c *gin.Context) {
 func ImportFomag(c *gin.Context) {
 	file, err := c.FormFile("archivo")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No se recibió el archivo Excel"})
+		file, err = c.FormFile("file")
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se recibió el archivo Excel (parámetro 'archivo' o 'file')"})
 		return
 	}
 
@@ -939,17 +959,26 @@ func ImportFomag(c *gin.Context) {
 	defer xlsx.Close()
 
 	sheetName := xlsx.GetSheetName(0)
+	maxRows := 0
 	sheets := xlsx.GetSheetList()
 	for _, s := range sheets {
-		if strings.Contains(strings.ToLower(s), "cohorte") {
-			sheetName = s
-			break
+		sLower := strings.ToLower(s)
+		r, err := xlsx.GetRows(s)
+		if err == nil && len(r) > 0 {
+			if strings.Contains(sLower, "cohorte") || strings.Contains(sLower, "gestante") || strings.Contains(sLower, "materna") || strings.Contains(sLower, "paciente") || strings.Contains(sLower, "base") || strings.Contains(sLower, "datos") || strings.Contains(sLower, "cpn") {
+				sheetName = s
+				break
+			}
+			if len(r) > maxRows {
+				maxRows = len(r)
+				sheetName = s
+			}
 		}
 	}
 
 	rows, err := xlsx.GetRows(sheetName)
 	if err != nil || len(rows) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No se encontraron filas de datos en la hoja de Excel"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se encontraron filas de datos en la hoja de Excel (" + sheetName + ")"})
 		return
 	}
 
@@ -960,44 +989,74 @@ func ImportFomag(c *gin.Context) {
 		Documento string `json:"documento"`
 		Error     string `json:"error"`
 	}
-	var errores []ErrorItem
+	errores := make([]ErrorItem, 0)
 
 	getColHeaderMap := make(map[string]int)
 
-	// Detectar automáticamente la fila de encabezados
-	headerRowIdx := -1
-	for idx := 0; idx < len(rows) && idx < 20; idx++ {
-		rowText := strings.ToUpper(strings.Join(rows[idx], " "))
-		if strings.Contains(rowText, "IDENTIFICACION") || strings.Contains(rowText, "IDENTIFICACIÓN") || strings.Contains(rowText, "DOCUMENTO") || strings.Contains(rowText, "NOMBRES") {
-			headerRowIdx = idx
-			break
-		}
-	}
+	// Detectar encabezados escaneando las primeras 15 filas
+	headerKeywords := []string{"IDENTIFICACION", "IDENTIFICACIÓN", "DOCUMENTO", "NOMBRES", "APELLIDOS", "CONSECUTIVO", "REGION", "REGIÓN", "IPS", "DEPARTAMENTO", "MUNICIPIO", "ESTADO CIVIL", "FECHA DE NACIMIENTO", "EDAD", "ESCOLARIDAD", "DIRECCION", "DIRECCIÓN", "BARRIO", "TELEFONO", "TELÉFONO", "OCUPACION", "ETNIA", "GENERO", "GÉNERO", "DISCAPACIDAD", "VIOLENCIA", "FUR", "FPP", "RIESGO", "ANTECEDENTES", "CPN", "PARACLINICOS", "PARACLÍNICOS", "VACUNACIÓN", "VACUNACION", "POSPARTO", "SEGUIMIENTO"}
 
-	if headerRowIdx >= 0 && headerRowIdx < len(rows) {
-		for cIdx, val := range rows[headerRowIdx] {
-			cleanVal := strings.ToUpper(strings.TrimSpace(val))
-			if cleanVal != "" {
-				getColHeaderMap[cleanVal] = cIdx
+	lastHeaderRowIdx := -1
+	for idx := 0; idx < len(rows) && idx < 15; idx++ {
+		rowText := strings.ToUpper(strings.Join(rows[idx], " "))
+		isHeader := false
+		for _, kw := range headerKeywords {
+			if strings.Contains(rowText, kw) {
+				isHeader = true
+				break
+			}
+		}
+		if isHeader {
+			lastHeaderRowIdx = idx
+			for cIdx, val := range rows[idx] {
+				cleanVal := strings.ToUpper(strings.TrimSpace(val))
+				if cleanVal != "" {
+					if _, exists := getColHeaderMap[cleanVal]; !exists {
+						getColHeaderMap[cleanVal] = cIdx
+					}
+				}
 			}
 		}
 	}
 
 	getCol := func(row []string, colStr string, altTitles ...string) string {
+		// 1. Probar primero por títulos de encabezado detectados dinámicamente en el archivo
 		for _, title := range altTitles {
-			if cIdx, ok := getColHeaderMap[strings.ToUpper(strings.TrimSpace(title))]; ok && cIdx < len(row) {
+			cleanTitle := strings.ToUpper(strings.TrimSpace(title))
+			if cIdx, ok := getColHeaderMap[cleanTitle]; ok && cIdx < len(row) {
 				v := strings.TrimSpace(row[cIdx])
 				if v != "" {
 					return v
 				}
 			}
 		}
-		num, _ := excelize.ColumnNameToNumber(colStr)
-		idx := num - 1
-		if idx >= 0 && idx < len(row) {
-			return strings.TrimSpace(row[idx])
+		// 2. Si la celda está vacía o no se encontró el título, probar por la letra de columna estándar
+		if colStr != "" {
+			num, err := excelize.ColumnNameToNumber(colStr)
+			if err == nil {
+				idx := num - 1
+				if idx >= 0 && idx < len(row) {
+					v := strings.TrimSpace(row[idx])
+					if v != "" {
+						return v
+					}
+				}
+			}
 		}
 		return ""
+	}
+
+	cleanDocString := func(val string) string {
+		val = strings.TrimSpace(val)
+		if strings.Contains(val, "e+") || strings.Contains(val, "E+") {
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				val = fmt.Sprintf("%.0f", f)
+			}
+		}
+		if strings.HasSuffix(val, ".0") {
+			val = strings.TrimSuffix(val, ".0")
+		}
+		return val
 	}
 
 	setStr := func(target **string, val string) {
@@ -1032,10 +1091,10 @@ func ImportFomag(c *gin.Context) {
 		}
 	}
 
-	// Determinar fila de inicio para los datos
+	// Determinar la fila de inicio para los datos de los pacientes
 	startRow := 11
-	if headerRowIdx != -1 {
-		startRow = headerRowIdx + 1
+	if lastHeaderRowIdx != -1 {
+		startRow = lastHeaderRowIdx + 1
 	} else if len(rows) > 1 && len(rows) < 12 {
 		startRow = 1
 	}
@@ -1043,17 +1102,47 @@ func ImportFomag(c *gin.Context) {
 	userIDVal, _ := c.Get("userId")
 	userID, _ := userIDVal.(uint)
 
+	// Obtener usuario actual e IPS asociada si existe
+	var currentUser models.User
+	if userID > 0 {
+		config.DB.Preload("IPS").First(&currentUser, userID)
+	}
+
 	for rIdx := startRow; rIdx < len(rows); rIdx++ {
 		row := rows[rIdx]
-		numIdent := getCol(row, "J", "No DE IDENTIFICACION", "Nº DE IDENTIFICACION", "NUMERO DE IDENTIFICACION", "DOCUMENTO", "IDENTIFICACION")
-		nombres := getCol(row, "G", "NOMBRES", "NOMBRE")
-		apellidos := getCol(row, "H", "APELLIDOS", "APELLIDO")
-
-		if numIdent == "" && nombres == "" {
+		if len(row) == 0 {
 			continue
 		}
+
+		rawIdent := getCol(row, "J", "No DE IDENTIFICACION", "Nº DE IDENTIFICACION", "N° DE IDENTIFICACION", "NUMERO DE IDENTIFICACION", "NÚMERO DE IDENTIFICACIÓN", "NUMERO DE IDENTIFICACIÓN", "NÚMERO DE IDENTIFICACION", "Nº IDENTIFICACION", "N° IDENTIFICACION", "NO. IDENTIFICACION", "NO IDENTIFICACION", "NUMERO DOCUMENTO", "NRO DOCUMENTO", "DOCUMENTO", "IDENTIFICACION", "IDENTIFICACIÓN", "CEDULA", "CÉDULA", "DOC")
+		numIdent := cleanDocString(rawIdent)
+
+		nombres := getCol(row, "G", "NOMBRES", "NOMBRE", "NOMBRES DE LA GESTANTE", "NOMBRE DE LA GESTANTE", "NOMBRES Y APELLIDOS", "NOMBRE COMPLETO", "PACIENTE")
+		apellidos := getCol(row, "H", "APELLIDOS", "APELLIDO", "APELLIDOS DE LA GESTANTE", "APELLIDO DE LA GESTANTE")
+
+		upperNum := strings.ToUpper(numIdent)
+		upperNom := strings.ToUpper(nombres)
+
+		// Omitir si la fila está vacía o si contiene encabezados
+		if (numIdent == "" && nombres == "") || strings.Contains(upperNum, "IDENTIFICAC") || strings.Contains(upperNum, "DOCUMENTO") || strings.Contains(upperNom, "NOMBRE") || strings.Contains(upperNom, "PACIENTE") {
+			continue
+		}
+
 		if numIdent == "" {
 			numIdent = fmt.Sprintf("TEMP_%d", rIdx+1)
+		}
+
+		ipsAtencionVal := getCol(row, "C", "IPS DE ATENCIÓN", "IPS DE ATENCION", "IPS", "INSTITUCION")
+		codigoHabilitacionVal := getCol(row, "D", "CODIGO DE HABILITACION DE IPS", "CODIGO HABILITACION", "CODIGO HABILITACION IPS")
+
+		var ipsID *uint
+		if currentUser.IPSID != nil && *currentUser.IPSID > 0 {
+			ipsID = currentUser.IPSID
+		} else if ipsAtencionVal != "" || codigoHabilitacionVal != "" {
+			var foundIPS models.IPS
+			if err := config.DB.Where("codigo_habilitacion = ? OR LOWER(nombre) LIKE LOWER(?)", codigoHabilitacionVal, "%"+ipsAtencionVal+"%").First(&foundIPS).Error; err == nil {
+				ipsID = &foundIPS.ID
+			}
 		}
 
 		var gestante models.Gestante
@@ -1062,7 +1151,7 @@ func ImportFomag(c *gin.Context) {
 
 		if res.Error != nil {
 			isNew = true
-			tipoIdent := getCol(row, "I")
+			tipoIdent := getCol(row, "I", "TIPO DE IDENTIFICACIÓN", "TIPO DE IDENTIFICACION", "TIPO IDENTIFICACION", "TIPO DOCUMENTO", "TD")
 			if tipoIdent == "" {
 				tipoIdent = "CC"
 			}
@@ -1071,23 +1160,33 @@ func ImportFomag(c *gin.Context) {
 				Apellidos:            apellidos,
 				TipoIdentificacion:   tipoIdent,
 				NumeroIdentificacion: numIdent,
+				IPSID:                ipsID,
 				CreadaPorID:          userID,
 			}
 			if err := config.DB.Create(&gestante).Error; err != nil {
 				errores = append(errores, ErrorItem{Fila: rIdx + 1, Documento: numIdent, Error: err.Error()})
 				continue
 			}
+			creados++
+		} else {
+			if ipsID != nil && gestante.IPSID == nil {
+				gestante.IPSID = ipsID
+			}
+			if gestante.CreadaPorID == 0 {
+				gestante.CreadaPorID = userID
+			}
+			actualizados++
 		}
 
 		// 1. Datos Básicos Gestante
-		setStr(&gestante.Region, getCol(row, "B"))
-		setStr(&gestante.IpsAtencion, getCol(row, "C"))
-		setStr(&gestante.CodigoHabilitacionIPS, getCol(row, "D"))
-		setStr(&gestante.Departamento, getCol(row, "E"))
-		setStr(&gestante.Municipio, getCol(row, "F"))
+		setStr(&gestante.Region, getCol(row, "B", "REGIÓN", "REGION"))
+		setStr(&gestante.IpsAtencion, getCol(row, "C", "IPS DE ATENCIÓN", "IPS DE ATENCION", "IPS"))
+		setStr(&gestante.CodigoHabilitacionIPS, getCol(row, "D", "CODIGO DE HABILITACION DE IPS", "CODIGO HABILITACION"))
+		setStr(&gestante.Departamento, getCol(row, "E", "DEPARTAMENTO DE RESIDENCIA", "DEPARTAMENTO"))
+		setStr(&gestante.Municipio, getCol(row, "F", "MUNICIPIO DE RESIDENCIA", "MUNICIPIO"))
 		if nombres != "" { gestante.Nombres = nombres }
 		if apellidos != "" { gestante.Apellidos = apellidos }
-		setStrVal(&gestante.TipoIdentificacion, getCol(row, "I"))
+		setStrVal(&gestante.TipoIdentificacion, getCol(row, "I", "TIPO DE IDENTIFICACIÓN", "TIPO DE IDENTIFICACION"))
 		setStr(&gestante.EstadoCivil, getCol(row, "K"))
 		setDateVal(&gestante.FechaNacimiento, getCol(row, "L"))
 		setStr(&gestante.EdadActual, getCol(row, "M"))

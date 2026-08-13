@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
-const ProtectedRoute = ({ adminOnly = false }) => {
+const ProtectedRoute = ({ adminOnly = false, superAdminOnly = false }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -26,7 +26,14 @@ const ProtectedRoute = ({ adminOnly = false }) => {
     }
   }
 
-  if (adminOnly && user.rol !== 'ADMIN') {
+  const isSuperAdmin = user.rol === 'SUPERADMIN' || user.rol === 'SUPER_ROOT';
+  const isAdmin = user.rol === 'ADMIN' || isSuperAdmin;
+
+  if (superAdminOnly && !isSuperAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (adminOnly && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 

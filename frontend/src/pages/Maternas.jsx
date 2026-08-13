@@ -269,10 +269,10 @@ const Maternas = () => {
       setImportSummary(res.data);
       setIsSummaryOpen(true);
       
-      if (res.data.errores?.length === 0) {
-          notify('Importación completada exitosamente', 'success');
+      if (!res.data.errores || res.data.errores.length === 0) {
+          notify(`Importación completada: ${res.data.creados || 0} creados, ${res.data.actualizados || 0} actualizados`, 'success');
       } else {
-          notify(`Importación finalizada con ${res.data.errores.length} errores`, 'warning');
+          notify(`Importación finalizada: ${res.data.creados || 0} creados, ${res.data.actualizados || 0} actualizados (${res.data.errores.length} errores)`, 'warning');
       }
       fetchMaternas();
     } catch (err) {

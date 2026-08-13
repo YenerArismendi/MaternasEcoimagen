@@ -2,7 +2,6 @@ package seed
 
 import (
 	"fmt"
-	"log"
 
 	"backend-go/internal/models"
 
@@ -11,27 +10,29 @@ import (
 )
 
 func SeedDatabase(db *gorm.DB) {
+	db = db.Session(&gorm.Session{NewDB: true})
 	fmt.Println("🌱 Iniciando seed en Go...")
 
-	// 1. Admin User
-	var count int64
-	db.Model(&models.User{}).Where("email = ?", "admin@maternas.com").Count(&count)
-	if count == 0 {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("Admin1234"), 12)
-		if err != nil {
-			log.Fatalf("Error encriptando password de admin: %v", err)
-		}
-		admin := models.User{
-			Nombre:   "Administrador",
-			Email:    "admin@maternas.com",
-			Password: string(hashedPassword),
-			Rol:      "ADMIN",
-			Activo:   true,
-		}
-		if err := db.Create(&admin).Error; err != nil {
-			log.Printf("⚠️ Error creando admin: %v", err)
+	// 0. Super Root User
+	var superCount int64
+	db.Model(&models.User{}).Where("email = ?", "superroot@maternas.com").Count(&superCount)
+	if superCount == 0 {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("SuperRoot1234"), 12)
+		if err == nil {
+			superRoot := models.User{
+				Nombre:   "Super Root Administrator",
+				Email:    "superroot@maternas.com",
+				Password: string(hashedPassword),
+				Rol:      "SUPERADMIN",
+				Activo:   true,
+			}
+			if err := db.Create(&superRoot).Error; err != nil {
+				fmt.Printf("⚠️ Error creando Super Root: %v\n", err)
+			} else {
+				fmt.Printf("✅ Super Root creado: %s / SuperRoot1234\n", superRoot.Email)
+			}
 		} else {
-			fmt.Printf("✅ Admin creado: %s\n", admin.Email)
+			fmt.Printf("⚠️ Error hashing password: %v\n", err)
 		}
 	}
 

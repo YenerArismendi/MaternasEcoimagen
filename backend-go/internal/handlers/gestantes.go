@@ -64,8 +64,16 @@ func getStringPtr(val interface{}) *string {
 }
 
 func GetGestantes(c *gin.Context) {
-	var gestantes []models.Gestante
-	err := config.DB.Preload("CreadaPor").
+	userIDVal, exists := c.Get("userId")
+	var currentUser models.User
+	if exists {
+		if uid, ok := userIDVal.(uint); ok {
+			config.DB.Preload("IPS").First(&currentUser, uid)
+		}
+	}
+
+	query := config.DB.Preload("CreadaPor").
+		Preload("IPS").
 		Preload("Antecedentes").
 		Preload("IngresoCPN").
 		Preload("Controles").
@@ -73,11 +81,22 @@ func GetGestantes(c *gin.Context) {
 		Preload("EgresoYPosparto").
 		Preload("SeguimientosTelef").
 		Preload("Eventos").
-		Order("created_at desc").
-		Find(&gestantes).Error
+		Order("created_at desc")
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error obteniendo gestantes"})
+	// Filtrado Multi-tenant: Si el usuario está asignado a una IPS (y no es SUPERADMIN), sólo ve las gestantes de su IPS o creadas por él
+	if currentUser.Rol != "SUPERADMIN" && currentUser.Rol != "SUPER_ROOT" && currentUser.IPSID != nil && *currentUser.IPSID > 0 {
+		if currentUser.IPS != nil {
+			query = query.Where("ips_id = ? OR creada_por_id = ? OR ips_atencion = ? OR codigo_habilitacion_ips = ? OR codigo_habilitacion_ip_s = ?",
+				*currentUser.IPSID, currentUser.ID, currentUser.IPS.Nombre, currentUser.IPS.CodigoHabilitacion, currentUser.IPS.CodigoHabilitacion)
+		} else {
+			query = query.Where("ips_id = ? OR creada_por_id = ?", *currentUser.IPSID, currentUser.ID)
+		}
+	}
+
+	var gestantes []models.Gestante
+	if err := query.Find(&gestantes).Error; err != nil {
+		fmt.Println("❌ Error en GetGestantes query:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error obteniendo gestantes: " + err.Error()})
 		return
 	}
 
@@ -94,6 +113,7 @@ func GetGestanteByID(c *gin.Context) {
 
 	var gestante models.Gestante
 	err = config.DB.Preload("CreadaPor").
+		Preload("IPS").
 		Preload("Antecedentes").
 		Preload("IngresoCPN").
 		Preload("Controles").
@@ -115,6 +135,11 @@ func GetGestanteByID(c *gin.Context) {
 func CreateGestante(c *gin.Context) {
 	userIDVal, _ := c.Get("userId")
 	userID, _ := userIDVal.(uint)
+
+	var currentUser models.User
+	if userID > 0 {
+		config.DB.Preload("IPS").First(&currentUser, userID)
+	}
 
 	var payload map[string]interface{}
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -164,12 +189,29 @@ func CreateGestante(c *gin.Context) {
 		}
 	}
 
+	// Manejo de IPS asociada a la gestante
+	ipsID := currentUser.IPSID
+	ipsAtencion := getStringPtr(payload["ipsAtencion"])
+	codigoHabilitacionIPS := getStringPtr(payload["codigoHabilitacionIPS"])
+
+	if currentUser.IPS != nil {
+		if ipsAtencion == nil || *ipsAtencion == "" {
+			ipsAtencion = &currentUser.IPS.Nombre
+		}
+		if codigoHabilitacionIPS == nil || *codigoHabilitacionIPS == "" {
+			codigoHabilitacionIPS = &currentUser.IPS.CodigoHabilitacion
+		}
+	}
+
 	gestante := models.Gestante{
 		Nombres:                  nombres,
 		Apellidos:                apellidos,
 		TipoIdentificacion:       tipoIdent,
 		NumeroIdentificacion:     numIdent,
 		FechaNacimiento:          fechaNac,
+		IPSID:                    ipsID,
+		IpsAtencion:              ipsAtencion,
+		CodigoHabilitacionIPS:    codigoHabilitacionIPS,
 		Departamento:             getStringPtr(payload["departamento"]),
 		Municipio:                getStringPtr(payload["municipio"]),
 		Direccion:                getStringPtr(payload["direccion"]),

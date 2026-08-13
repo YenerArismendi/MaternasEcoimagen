@@ -39,13 +39,15 @@ type CreateEventoInput struct {
 	Tipo            string   `json:"tipo" binding:"required"`
 	Descripcion     string   `json:"descripcion" binding:"required"`
 	FechaProgramada string   `json:"fechaProgramada" binding:"required"`
+	FechaRealizada  *string  `json:"fechaRealizada"`
+	Estado          *string  `json:"estado"`
+	Resultado       *string  `json:"resultado"`
 	EsObligatorio   *bool    `json:"esObligatorio"`
 	EsControl       *bool    `json:"esControl"`
 	MaternaID       uint     `json:"maternaId"`
 	GestanteID      uint     `json:"gestanteId"`
 	Notas           *string  `json:"notas"`
 	CodigoCUPS      *string  `json:"codigoCUPS"`
-	Resultado       *string  `json:"resultado"`
 	Trimestre       *string  `json:"trimestre"`
 	PrestadoresIDs  []uint   `json:"prestadoresIds"`
 }
@@ -74,6 +76,24 @@ func CreateEvento(c *gin.Context) {
 		}
 	}
 
+	estado := "PENDIENTE"
+	if input.Estado != nil && *input.Estado != "" {
+		estado = *input.Estado
+	}
+
+	var fechaReal *time.Time
+	if input.FechaRealizada != nil && *input.FechaRealizada != "" {
+		if t, err := time.Parse(time.RFC3339, *input.FechaRealizada); err == nil {
+			fechaReal = &t
+		} else if t, err := time.Parse("2006-01-02", *input.FechaRealizada); err == nil {
+			fechaReal = &t
+		}
+	}
+	if estado == "REALIZADO" && fechaReal == nil {
+		now := time.Now()
+		fechaReal = &now
+	}
+
 	esOblig := false
 	if input.EsObligatorio != nil {
 		esOblig = *input.EsObligatorio
@@ -87,6 +107,7 @@ func CreateEvento(c *gin.Context) {
 		Tipo:            input.Tipo,
 		Descripcion:     input.Descripcion,
 		FechaProgramada: fechaProg,
+		FechaRealizada:  fechaReal,
 		EsObligatorio:   esOblig,
 		EsControl:       esCtrl,
 		Resultado:       input.Resultado,
@@ -94,7 +115,7 @@ func CreateEvento(c *gin.Context) {
 		GestanteID:      gID,
 		Notas:           input.Notas,
 		Trimestre:       input.Trimestre,
-		Estado:          "PENDIENTE",
+		Estado:          estado,
 		EstaAgendado:    false,
 	}
 
@@ -110,6 +131,7 @@ func CreateEvento(c *gin.Context) {
 	}
 
 	config.DB.Preload("Prestadores").First(&evento, evento.ID)
+	sincronizarEventoConMatricesClinicas(&evento)
 	c.JSON(http.StatusCreated, evento)
 }
 
@@ -169,60 +191,116 @@ func sincronizarEventoConMatricesClinicas(evento *models.EventoMedico) {
 	fechaReal := *evento.FechaRealizada
 	descLower := strings.ToLower(evento.Descripcion)
 
+	// Garantizar la existencia de registros asociados usando FirstOrCreate
+	var egreso models.EgresoYPosparto
+	config.DB.Where("gestante_id = ?", gID).FirstOrCreate(&egreso, models.EgresoYPosparto{GestanteID: gID})
+
+	var para models.Paraclinico
+	config.DB.Where("gestante_id = ?", gID).FirstOrCreate(&para, models.Paraclinico{GestanteID: gID})
+
+	var cpn models.IngresoCPN
+	config.DB.Where("gestante_id = ?", gID).FirstOrCreate(&cpn, models.IngresoCPN{GestanteID: gID})
+
 	// 1. Vacunas y Atenciones Interdisciplinarias (EgresoYPosparto)
 	if strings.Contains(descLower, "tdap") || strings.Contains(descLower, "tosferina") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("fecha_tdap", fechaReal)
+		config.DB.Model(&egreso).Update("fecha_tdap", fechaReal)
 	} else if strings.Contains(descLower, "influenza") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("fecha_influenza", fechaReal)
-	} else if strings.Contains(descLower, "toxoide") || strings.Contains(descLower, "tetanico") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("fecha_toxoide_tetanico", fechaReal)
+		config.DB.Model(&egreso).Update("fecha_influenza", fechaReal)
+	} else if strings.Contains(descLower, "toxoide") || strings.Contains(descLower, "tetanico") || strings.Contains(descLower, "tétanos") {
+		config.DB.Model(&egreso).Update("fecha_toxoide_tetanico", fechaReal)
+	} else if strings.Contains(descLower, "covid") {
+		config.DB.Model(&egreso).Update("fecha_covid1", fechaReal)
 	} else if strings.Contains(descLower, "odontolog") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("odontologia_ctrl1", fechaReal)
+		config.DB.Model(&egreso).Update("odontologia_ctrl1", fechaReal)
 	} else if strings.Contains(descLower, "nutricion") || strings.Contains(descLower, "nutrición") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("nutricion_ctrl1", fechaReal)
+		config.DB.Model(&egreso).Update("nutricion_ctrl1", fechaReal)
 	} else if strings.Contains(descLower, "psicolog") || strings.Contains(descLower, "psicología") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("psicologia_ctrl1", fechaReal)
+		config.DB.Model(&egreso).Update("psicologia_ctrl1", fechaReal)
 	} else if strings.Contains(descLower, "trabajo social") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("trabajo_social_ctrl1", fechaReal)
+		config.DB.Model(&egreso).Update("trabajo_social_ctrl1", fechaReal)
 	} else if strings.Contains(descLower, "anticoncep") {
-		config.DB.Model(&models.EgresoYPosparto{}).Where("gestante_id = ?", gID).Update("fecha_asesoria_anticoncepcion", fechaReal)
+		config.DB.Model(&egreso).Update("fecha_asesoria_anticoncepcion", fechaReal)
+	} else if strings.Contains(descLower, "ive") {
+		res := "Realizado"
+		config.DB.Model(&egreso).Update("asesoria_ive", res)
+	} else if strings.Contains(descLower, "lactancia") {
+		config.DB.Model(&egreso).Update("fecha_consejería_lactancia_prenatal", fechaReal)
+	} else if strings.Contains(descLower, "curso") || strings.Contains(descLower, "maternidad") {
+		config.DB.Model(&egreso).Update("cursos_maternidad_f1", fechaReal)
 	}
 
 	// 2. Paraclínicos e Imágenes Diagnósticas (Paraclinico)
-	if strings.Contains(descLower, "ecografía de detalle") || strings.Contains(descLower, "eco detalle") || strings.Contains(descLower, "detalle anatómico") {
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("ecografia_detalle", fechaReal)
-	} else if strings.Contains(descLower, "ecografía 1er") || strings.Contains(descLower, "ecografía de tamizaje") || strings.Contains(descLower, "eco1") {
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("ecografia1_trimestre", fechaReal)
+	if strings.Contains(descLower, "ecografía de detalle") || strings.Contains(descLower, "eco detalle") || strings.Contains(descLower, "detalle anatómico") || strings.Contains(descLower, "detalle") {
+		config.DB.Model(&para).Update("ecografia_detalle", fechaReal)
+	} else if strings.Contains(descLower, "ecografía 1er") || strings.Contains(descLower, "ecografía de tamizaje") || strings.Contains(descLower, "eco1") || (strings.Contains(descLower, "1er") && strings.Contains(descLower, "eco")) {
+		config.DB.Model(&para).Update("ecografia1_trimestre", fechaReal)
 	} else if strings.Contains(descLower, "ptog") || strings.Contains(descLower, "tolerancia a la glucosa") {
 		val := fmt.Sprintf("Realizado (%s)", fechaReal.Format("02/01/2006"))
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("ptog_75gr", val)
+		config.DB.Model(&para).Update("ptog_75gr", val)
 	} else if strings.Contains(descLower, "estreptococo") || strings.Contains(descLower, "stgb") {
 		val := fmt.Sprintf("Realizado (%s)", fechaReal.Format("02/01/2006"))
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("estreptococo_b", val)
+		config.DB.Model(&para).Update("estreptococo_b", val)
 	} else if strings.Contains(descLower, "urocultivo") {
 		val := fmt.Sprintf("Realizado (%s)", fechaReal.Format("02/01/2006"))
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("urocultivo", val)
+		config.DB.Model(&para).Update("urocultivo", val)
 	} else if strings.Contains(descLower, "hemoclasificacion") || strings.Contains(descLower, "hemoclasificación") {
 		val := fmt.Sprintf("Registrado (%s)", fechaReal.Format("02/01/2006"))
-		config.DB.Model(&models.Paraclinico{}).Where("gestante_id = ?", gID).Update("hemoclasificacion", val)
+		config.DB.Model(&para).Update("hemoclasificacion", val)
+	} else if strings.Contains(descLower, "sífilis") || strings.Contains(descLower, "sifilis") || strings.Contains(descLower, "vdrl") {
+		if strings.Contains(descLower, "3") || strings.Contains(descLower, "tercer") {
+			res := "Negativo"
+			config.DB.Model(&para).Updates(map[string]interface{}{"sifilis3_resultado": res, "sifilis3_fecha": fechaReal})
+		} else {
+			res := "Negativo"
+			config.DB.Model(&para).Updates(map[string]interface{}{"sifilis_resultado": res, "sifilis_fecha": fechaReal})
+		}
+	} else if strings.Contains(descLower, "vih") {
+		if strings.Contains(descLower, "3") || strings.Contains(descLower, "tercer") {
+			res := "Negativo"
+			config.DB.Model(&para).Updates(map[string]interface{}{"vih3_resultado": res, "vih3_fecha": fechaReal})
+		} else {
+			res := "Negativo"
+			config.DB.Model(&para).Updates(map[string]interface{}{"vih_resultado": res, "vih_fecha": fechaReal})
+		}
+	} else if strings.Contains(descLower, "hemograma") {
+		if strings.Contains(descLower, "3") || strings.Contains(descLower, "tercer") {
+			config.DB.Model(&para).Updates(map[string]interface{}{"hemograma3_hb": "Normal", "hemograma3_hcto": "Normal"})
+		} else {
+			config.DB.Model(&para).Updates(map[string]interface{}{"hemograma_hb": "Normal", "hemograma_hcto": "Normal"})
+		}
 	}
 
-	// 3. Controles CPN (SeguimientoControl)
+	// 3. Controles CPN (SeguimientoControl) e Ingreso CPN
+	if strings.Contains(descLower, "ingreso") && (strings.Contains(descLower, "cpn") || strings.Contains(descLower, "control")) {
+		config.DB.Model(&cpn).Update("fecha_inscripcion_cpn", fechaReal)
+	}
+
 	if strings.Contains(descLower, "control") || strings.Contains(descLower, "cpn") || evento.EsControl {
-		var count int64
-		config.DB.Model(&models.SeguimientoControl{}).Where("gestante_id = ?", gID).Count(&count)
-		numControl := int(count) + 1
-		if numControl > 11 {
-			numControl = 11
+		// Detectar número de control específico (1 al 11)
+		numControl := 0
+		for i := 11; i >= 1; i-- {
+			if strings.Contains(descLower, fmt.Sprintf("%d cpn", i)) ||
+				strings.Contains(descLower, fmt.Sprintf("%dº cpn", i)) ||
+				strings.Contains(descLower, fmt.Sprintf("%d control", i)) ||
+				strings.Contains(descLower, fmt.Sprintf("control #%d", i)) ||
+				strings.Contains(descLower, fmt.Sprintf("control %d", i)) ||
+				strings.Contains(descLower, fmt.Sprintf("control prenatal #%d", i)) {
+				numControl = i
+				break
+			}
 		}
+
+		if numControl == 0 {
+			var count int64
+			config.DB.Model(&models.SeguimientoControl{}).Where("gestante_id = ?", gID).Count(&count)
+			numControl = int(count) + 1
+			if numControl > 11 {
+				numControl = 11
+			}
+		}
+
 		var ctrl models.SeguimientoControl
-		if err := config.DB.Where("gestante_id = ? AND numero_control = ?", gID, numControl).First(&ctrl).Error; err != nil {
-			config.DB.Create(&models.SeguimientoControl{
-				GestanteID:    gID,
-				NumeroControl: &numControl,
-				FechaCPN:      &fechaReal,
-			})
-		} else {
+		if err := config.DB.Where("gestante_id = ? AND numero_control = ?", gID, numControl).FirstOrCreate(&ctrl, models.SeguimientoControl{GestanteID: gID, NumeroControl: &numControl}).Error; err == nil {
 			config.DB.Model(&ctrl).Update("fecha_cpn", fechaReal)
 		}
 	}

@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Layers,
   Megaphone,
-  Bell
+  Bell,
+  Building2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNotification } from '../context/NotificationContext';
@@ -23,15 +24,26 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const menuItems = [
-    { name: 'Dashboard',    path: '/dashboard',     icon: LayoutDashboard, admin: false },
-    { name: 'Maternas',     path: '/maternas',      icon: Baby,            admin: false },
-    { name: 'Paquetes',     path: '/paquetes',      icon: Layers,          admin: false },
-    { name: 'Anuncios',     path: '/anuncios',      icon: Megaphone,       admin: false },
-    { name: 'Usuarios',     path: '/usuarios',      icon: Users,           admin: true },
-    { name: 'Configuración', path: '/configuracion', icon: Settings,       admin: true },
+    { name: 'Dashboard',     path: '/dashboard',     icon: LayoutDashboard, admin: false },
+    { name: 'Maternas',      path: '/maternas',      icon: Baby,            admin: false },
+    { name: 'Paquetes',      path: '/paquetes',      icon: Layers,          admin: false },
+    { name: 'Anuncios',      path: '/anuncios',      icon: Megaphone,       admin: false },
+    { name: 'Gestión IPS',   path: '/ips',           icon: Building2,       superAdminOnly: true },
+    { name: 'Usuarios',      path: '/usuarios',      icon: Users,           admin: true },
+    { name: 'Configuración', path: '/configuracion', icon: Settings,        admin: true },
   ];
 
-  let filteredMenu = menuItems.filter(item => !item.admin || user?.rol === 'ADMIN');
+  let filteredMenu = menuItems.filter(item => {
+    const isSuperAdmin = user?.rol === 'SUPERADMIN' || user?.rol === 'SUPER_ROOT';
+    if (item.superAdminOnly) {
+      return isSuperAdmin;
+    }
+    if (item.admin) {
+      return user?.rol === 'ADMIN' || isSuperAdmin;
+    }
+    return true;
+  });
+
   if (user?.rol === 'GESTANTE') {
     const portalPath = user?.gestanteId ? `/maternas/${user.gestanteId}` : '/maternas';
     filteredMenu = [
@@ -159,7 +171,22 @@ const Sidebar = () => {
             <p style={{ fontWeight: '800', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)', letterSpacing: '-0.3px' }}>
               {user?.nombre}
             </p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{user?.rol}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>{user?.rol}</p>
+              {user?.ips ? (
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid #bae6fd', width: 'fit-content' }}>
+                  <Building2 size={11} /> {user.ips.nombre}
+                </span>
+              ) : user?.ipsId ? (
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid #bae6fd', width: 'fit-content' }}>
+                  <Building2 size={11} /> IPS #{user.ipsId}
+                </span>
+              ) : (
+                <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '900', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid #cbd5e1', width: 'fit-content' }}>
+                  <Building2 size={11} /> Acceso Global
+                </span>
+              )}
+            </div>
           </div>
         </div>
         
