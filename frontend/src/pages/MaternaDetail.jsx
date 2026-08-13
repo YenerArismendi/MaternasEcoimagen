@@ -17,6 +17,7 @@ import PortalMaterna from './PortalMaterna';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import PDFExtractionModal from '../components/PDFExtractionModal';
+import ClinicalNoteModal from '../components/ClinicalNoteModal';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -274,6 +275,7 @@ const MaternaDetail = () => {
   const [activeMainSection, setActiveMainSection] = useState('alertas'); // 'alertas' (paciente) | 'medico' (personal médico)
   const [saving, setSaving] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [clinicalNoteModalOpen, setClinicalNoteModalOpen] = useState(false);
   const [activeModalTab, setActiveModalTab] = useState(null);
 
   const handleApplyPDFData = async (pdfData) => {
@@ -629,6 +631,9 @@ const MaternaDetail = () => {
             </motion.button>
             <motion.button whileHover={{ scale: 1.05 }} onClick={() => setPdfModalOpen(true)} style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)' }}>
               <FileText size={16} /> Escanear PDF
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.05 }} onClick={() => setClinicalNoteModalOpen(true)} style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: '950', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}>
+              <Copy size={16} /> 📋 Plantilla HCL
             </motion.button>
             <motion.button whileHover={{ scale: 1.05 }} onClick={async () => {
               notify('Generando reporte Excel FOMAG...', 'info');
@@ -1006,6 +1011,12 @@ const MaternaDetail = () => {
     onClose={() => setPdfModalOpen(false)} 
     onApplyData={handleApplyPDFData} 
     gestanteNombre={`${materna?.nombres || ''} ${materna?.apellidos || ''}`} 
+  />
+
+  <ClinicalNoteModal
+    isOpen={clinicalNoteModalOpen}
+    onClose={() => setClinicalNoteModalOpen(false)}
+    materna={materna}
   />
 </div>
   );

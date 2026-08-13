@@ -67,10 +67,19 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
     return e.estaAgendado || e.fechaAgendamiento;
   });
 
+  // Helper para verificar si existe un evento REALIZADO coincidente
+  const isEventRealizado = (keywords) => {
+    return eventos.some(e => {
+      if (e.estado !== 'REALIZADO') return false;
+      const desc = (e.descripcion || '').toLowerCase();
+      return keywords.some(kw => desc.includes(kw.toLowerCase()));
+    });
+  };
+
   // 4. PREDICTOR DE PRÓXIMOS HITOS Y EXÁMENES (Fechas futuras por semana gestacional)
   const proximosHitos = [];
 
-  if (weeks >= 14 && weeks < 24 && !par.ecografiaDetalle) {
+  if (weeks >= 14 && weeks < 24 && !par.ecografiaDetalle && !isEventRealizado(['detalle', 'ecografía de detalle'])) {
     const semRestantes = 18 - weeks;
     proximosHitos.push({
       id: 'paraclinicos',
@@ -82,7 +91,7 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
     });
   }
 
-  if (weeks >= 20 && weeks < 28 && !par.ptog_75gr) {
+  if (weeks >= 20 && weeks < 28 && !par.ptog_75gr && !isEventRealizado(['ptog'])) {
     const semRestantes = 24 - weeks;
     proximosHitos.push({
       id: 'paraclinicos',
@@ -94,7 +103,7 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
     });
   }
 
-  if (weeks >= 22 && weeks < 28 && !egr.fechaTdap) {
+  if (weeks >= 22 && weeks < 28 && !egr.fechaTdap && !isEventRealizado(['tdap'])) {
     const semRestantes = 26 - weeks;
     proximosHitos.push({
       id: 'vacunas',
@@ -106,7 +115,7 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
     });
   }
 
-  if (weeks >= 24 && weeks < 34 && !egr.fechaAsesoriaAnticoncepcion) {
+  if (weeks >= 24 && weeks < 34 && !egr.fechaAsesoriaAnticoncepcion && !isEventRealizado(['anticoncepcion', 'anticoncepción'])) {
     const semRestantes = 28 - weeks;
     proximosHitos.push({
       id: 'ive_lactancia',
@@ -118,7 +127,7 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
     });
   }
 
-  if (weeks >= 31 && weeks < 37 && !par.estreptococoB) {
+  if (weeks >= 31 && weeks < 37 && !par.estreptococoB && !isEventRealizado(['estreptococo', 'stgb'])) {
     const semRestantes = 35 - weeks;
     proximosHitos.push({
       id: 'paraclinicos',
@@ -170,30 +179,91 @@ const ClinicalAlertsPanel = ({ materna, onNavigateTab, onRefresh }) => {
       return;
     }
     try {
+      const fechaObj = new Date(confirmModal.fecha + 'T12:00:00');
       if (confirmModal.evento?.id) {
         await api.patch(`/eventos/${confirmModal.evento.id}`, {
           estado: 'REALIZADO',
-          fechaRealizada: new Date(confirmModal.fecha + 'T12:00:00'),
+          fechaRealizada: fechaObj,
           resultado: confirmModal.notas || 'Asistencia Confirmada'
         });
-        notify('✅ ¡Asistencia confirmada! La atención ha quedado registrada en la ficha de la gestante y en la matriz Excel FOMAG.', 'success');
       } else if (confirmModal.hito) {
         await api.post('/eventos', {
           tipo: confirmModal.hito.categoria === 'VACUNA' || confirmModal.hito.id === 'vacunas' ? 'VACUNA' : (confirmModal.hito.categoria === 'EXAMEN' ? 'LABORATORIO' : 'CONSULTA'),
           descripcion: confirmModal.hito.titulo,
           fechaProgramada: confirmModal.fecha,
-          fechaRealizada: new Date(confirmModal.fecha + 'T12:00:00'),
+          fechaRealizada: fechaObj,
           estado: 'REALIZADO',
           resultado: confirmModal.notas || 'Asistencia Confirmada',
           esObligatorio: true,
           esControl: confirmModal.hito.categoria === 'CONSULTA' || confirmModal.hito.id === 'cpn',
           maternaId: materna.id
         });
-        notify('✅ ¡Atención registrada y confirmada! La atención ha quedado registrada en la ficha de la gestante y en la matriz Excel FOMAG.', 'success');
+
+        // Actualizar automáticamente los campos de la ficha clínica según el hito confirmado
+        const titleLower = (confirmModal.hito.titulo || '').toLowerCase();
+        
+        if (confirmModal.hito.id === 'paraclinicos') {
+          const payload = {};
+          if (titleLower.includes('hemoclasificac')) payload.hemoclasificacion = confirmModal.notas || 'CONFIRMADO';
+          if (titleLower.includes('ecograf')) {
+            payload.ecografia1Trimestre = fechaObj;
+            payload.eco1_Interpretacion = confirmModal.notas || 'NORMAL';
+          }
+          if (titleLower.includes('urocultivo')) payload.urocultivo = confirmModal.notas || 'NEGATIVO';
+          if (titleLower.includes('vih')) {
+            if (titleLower.includes('3')) {
+              payload.vih3_Resultado = confirmModal.notas || 'NO REACTIVO';
+              payload.vih3_Fecha = fechaObj;
+            } else {
+              payload.vih_Resultado = confirmModal.notas || 'NO REACTIVO';
+              payload.vih_Fecha = fechaObj;
+            }
+          }
+          if (titleLower.includes('sifilis') || titleLower.includes('sífilis') || titleLower.includes('vdrl')) {
+            if (titleLower.includes('3')) {
+              payload.sifilis3_Resultado = confirmModal.notas || 'NO REACTIVO';
+              payload.sifilis3_Fecha = fechaObj;
+            } else {
+              payload.sifilis_Resultado = confirmModal.notas || 'NO REACTIVO';
+              payload.sifilis_Fecha = fechaObj;
+            }
+          }
+          if (titleLower.includes('ptog')) payload.ptog_75gr = confirmModal.notas || 'NORMAL';
+          if (titleLower.includes('estreptococo') || titleLower.includes('stgb')) payload.estreptococoB = confirmModal.notas || 'NEGATIVO';
+
+          if (Object.keys(payload).length > 0) {
+            await api.put(`/maternas/${materna.id}/paraclinicos`, payload);
+          }
+        } else if (confirmModal.hito.id === 'vacunas') {
+          const payload = {};
+          if (titleLower.includes('tdap')) payload.fechaTdap = fechaObj;
+          if (Object.keys(payload).length > 0) {
+            await api.put(`/maternas/${materna.id}/egreso`, payload);
+          }
+        } else if (confirmModal.hito.id === 'interdisciplinario') {
+          const payload = {};
+          if (titleLower.includes('odontolog')) payload.odontologia_Ctrl1 = fechaObj;
+          if (titleLower.includes('nutric')) payload.nutricion_Ctrl1 = fechaObj;
+          if (titleLower.includes('psicolog')) payload.psicologia_Ctrl1 = fechaObj;
+          if (titleLower.includes('trabajo social') || titleLower.includes('social')) payload.trabajoSocial_Ctrl1 = fechaObj;
+          if (Object.keys(payload).length > 0) {
+            await api.put(`/maternas/${materna.id}/egreso`, payload);
+          }
+        } else if (confirmModal.hito.id === 'ive_lactancia') {
+          const payload = {};
+          if (titleLower.includes('curso')) payload.cursosMaternidad_F1 = fechaObj;
+          if (titleLower.includes('anticoncep')) payload.fechaAsesoriaAnticoncepcion = fechaObj;
+          if (Object.keys(payload).length > 0) {
+            await api.put(`/maternas/${materna.id}/egreso`, payload);
+          }
+        }
       }
+
+      notify('✅ ¡Asistencia confirmada! La atención ha quedado registrada en la ficha de la gestante y en la matriz Excel FOMAG.', 'success');
       setConfirmModal({ open: false, evento: null, hito: null, fecha: '', notas: '' });
       if (onRefresh) onRefresh();
     } catch (err) {
+      console.error(err);
       notify('Error al confirmar asistencia', 'error');
     }
   };

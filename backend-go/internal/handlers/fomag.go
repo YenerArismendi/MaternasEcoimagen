@@ -993,30 +993,48 @@ func ImportFomag(c *gin.Context) {
 
 	getColHeaderMap := make(map[string]int)
 
-	// Detectar encabezados escaneando las primeras 15 filas
-	headerKeywords := []string{"IDENTIFICACION", "IDENTIFICACIÓN", "DOCUMENTO", "NOMBRES", "APELLIDOS", "CONSECUTIVO", "REGION", "REGIÓN", "IPS", "DEPARTAMENTO", "MUNICIPIO", "ESTADO CIVIL", "FECHA DE NACIMIENTO", "EDAD", "ESCOLARIDAD", "DIRECCION", "DIRECCIÓN", "BARRIO", "TELEFONO", "TELÉFONO", "OCUPACION", "ETNIA", "GENERO", "GÉNERO", "DISCAPACIDAD", "VIOLENCIA", "FUR", "FPP", "RIESGO", "ANTECEDENTES", "CPN", "PARACLINICOS", "PARACLÍNICOS", "VACUNACIÓN", "VACUNACION", "POSPARTO", "SEGUIMIENTO"}
-
+	// Detectar encabezados escaneando las primeras 20 filas
 	lastHeaderRowIdx := -1
-	for idx := 0; idx < len(rows) && idx < 15; idx++ {
+	for idx := 0; idx < len(rows) && idx < 20; idx++ {
 		rowText := strings.ToUpper(strings.Join(rows[idx], " "))
-		isHeader := false
-		for _, kw := range headerKeywords {
-			if strings.Contains(rowText, kw) {
-				isHeader = true
-				break
-			}
-		}
-		if isHeader {
-			lastHeaderRowIdx = idx
-			for cIdx, val := range rows[idx] {
-				cleanVal := strings.ToUpper(strings.TrimSpace(val))
-				if cleanVal != "" {
-					if _, exists := getColHeaderMap[cleanVal]; !exists {
-						getColHeaderMap[cleanVal] = cIdx
+
+		// Comprobar si esta fila contiene títulos de columnas de identificación o nombres
+		hasDocHeader := strings.Contains(rowText, "IDENTIFICA") || strings.Contains(rowText, "DOCUMENTO") || strings.Contains(rowText, "CEDULA") || strings.Contains(rowText, "CÉDULA")
+		hasNameHeader := strings.Contains(rowText, "NOMBRE") || strings.Contains(rowText, "APELLIDO") || strings.Contains(rowText, "PACIENTE") || strings.Contains(rowText, "GESTANTE")
+
+		if hasDocHeader || hasNameHeader {
+			// Comprobar si la fila es en realidad un paciente (si contiene un documento numérico de 5 a 12 dígitos)
+			isDataRow := false
+			for _, cell := range rows[idx] {
+				cellClean := strings.TrimSpace(cell)
+				if len(cellClean) >= 5 && len(cellClean) <= 12 {
+					if _, err := strconv.ParseInt(cellClean, 10, 64); err == nil {
+						isDataRow = true
+						break
 					}
 				}
 			}
+
+			if !isDataRow {
+				lastHeaderRowIdx = idx
+				for cIdx, val := range rows[idx] {
+					cleanVal := strings.ToUpper(strings.TrimSpace(val))
+					if cleanVal != "" {
+						if _, exists := getColHeaderMap[cleanVal]; !exists {
+							getColHeaderMap[cleanVal] = cIdx
+						}
+					}
+				}
+			} else {
+				// Al encontrar la primera fila de datos reales, se detiene la búsqueda de encabezados
+				break
+			}
 		}
+	}
+
+	startRow := 0
+	if lastHeaderRowIdx != -1 {
+		startRow = lastHeaderRowIdx + 1
 	}
 
 	getCol := func(row []string, colStr string, altTitles ...string) string {
@@ -1091,14 +1109,6 @@ func ImportFomag(c *gin.Context) {
 		}
 	}
 
-	// Determinar la fila de inicio para los datos de los pacientes
-	startRow := 11
-	if lastHeaderRowIdx != -1 {
-		startRow = lastHeaderRowIdx + 1
-	} else if len(rows) > 1 && len(rows) < 12 {
-		startRow = 1
-	}
-
 	userIDVal, _ := c.Get("userId")
 	userID, _ := userIDVal.(uint)
 
@@ -1147,10 +1157,8 @@ func ImportFomag(c *gin.Context) {
 
 		var gestante models.Gestante
 		res := config.DB.Where("numero_identificacion = ?", numIdent).First(&gestante)
-		isNew := false
 
 		if res.Error != nil {
-			isNew = true
 			tipoIdent := getCol(row, "I", "TIPO DE IDENTIFICACIÓN", "TIPO DE IDENTIFICACION", "TIPO IDENTIFICACION", "TIPO DOCUMENTO", "TD")
 			if tipoIdent == "" {
 				tipoIdent = "CC"
@@ -1265,27 +1273,27 @@ func ImportFomag(c *gin.Context) {
 		// 4. Paraclínicos
 		var par models.Paraclinico
 		config.DB.FirstOrCreate(&par, models.Paraclinico{GestanteID: gestante.ID})
-		setStr(&par.Sifilis_Resultado, getCol(row, "AJ"))
-		setDate(&par.Sifilis_Fecha, getCol(row, "AK"))
-		setStr(&par.Vih_Resultado, getCol(row, "AL"))
-		setDate(&par.Vih_Fecha, getCol(row, "AM"))
-		setStr(&par.Hbsag_Resultado, getCol(row, "AN"))
-		setDate(&par.Hbsag_Fecha, getCol(row, "AO"))
-		setStr(&par.Chagas_Resultado, getCol(row, "AP"))
-		setStr(&par.Hemoclasificacion, getCol(row, "CM"))
-		setStr(&par.Hemograma_HB, getCol(row, "CN"))
-		setStr(&par.Hemograma_HCTO, getCol(row, "CO"))
-		setStr(&par.Hemograma_Plaquetas, getCol(row, "CP"))
-		setStr(&par.Glicemia, getCol(row, "CQ"))
-		setStr(&par.Igg_Rubeola, getCol(row, "CR"))
-		setStr(&par.Igg_Toxoplasma, getCol(row, "CS"))
-		setStr(&par.Igm_Toxoplasma, getCol(row, "CT"))
-		setStr(&par.AvidezToxoplasma, getCol(row, "CU"))
-		setStr(&par.Iga_Toxoplasma, getCol(row, "CV"))
-		setStr(&par.Urocultivo, getCol(row, "CW"))
-		setStr(&par.Hemoparasitos, getCol(row, "CX"))
-		setDate(&par.Ecografia1Trimestre, getCol(row, "CZ"))
-		setStr(&par.Eco1_Interpretacion, getCol(row, "DA"))
+		setStr(&par.Sifilis_Resultado, getCol(row, "AJ", "SIFILIS", "SÍFILIS", "PRUEBA RAPIDA SIFILIS", "RESULTADO SIFILIS"))
+		setDate(&par.Sifilis_Fecha, getCol(row, "AK", "FECHA SIFILIS", "FECHA SÍFILIS"))
+		setStr(&par.Vih_Resultado, getCol(row, "AL", "VIH", "PRUEBA RAPIDA VIH", "RESULTADO VIH"))
+		setDate(&par.Vih_Fecha, getCol(row, "AM", "FECHA VIH"))
+		setStr(&par.Hbsag_Resultado, getCol(row, "AN", "HBSAG", "HEPATITIS B", "RESULTADO HBSAG"))
+		setDate(&par.Hbsag_Fecha, getCol(row, "AO", "FECHA HBSAG", "FECHA HEPATITIS B"))
+		setStr(&par.Chagas_Resultado, getCol(row, "AP", "RESULTADO DE CHAGAS (RESIDENCIA O PROCEDENCIA DE GESTANTE)", "RESULTADO DE CHAGAS", "CHAGAS"))
+		setStr(&par.Hemoclasificacion, getCol(row, "CM", "RESULTADO HEMOCLASIFICACION", "RESULTADO HEMOCLASIFICACIÓN", "HEMOCLASIFICACION", "HEMOCLASIFICACIÓN"))
+		setStr(&par.Hemograma_HB, getCol(row, "CN", "RESULTADO HEMOGRAMA", "HEMOGRAMA", "RESULTADO HEMOGRAMA HB", "HEMOGRAMA HB"))
+		setStr(&par.Hemograma_HCTO, getCol(row, "CO", "HEMOGRAMA HCTO", "HCTO"))
+		setStr(&par.Hemograma_Plaquetas, getCol(row, "CP", "HEMOGRAMA PLAQUETAS", "PLAQUETAS"))
+		setStr(&par.Glicemia, getCol(row, "CQ", "RESULTADO GLICEMIA", "GLICEMIA"))
+		setStr(&par.Igg_Rubeola, getCol(row, "CR", "RESULTADO IGG PARA RUBEOLA", "RESULTADO IGG PARA RUBÉOLA", "RESULTADO IGG RUBEOLA", "IGG RUBEOLA"))
+		setStr(&par.Igg_Toxoplasma, getCol(row, "CS", "RESULTADO IGG E IGM PARA TOXOPLASMA Y AVIDEZ (INICIAL)", "RESULTADO IGG E IGM PARA TOXOPLASMA (IGG Y AVIDEZ INICIAL)", "RESULTADO IGG PARA TOXOPLASMA", "RESULTADO TOXOPLASMA", "TOXOPLASMA IGG"))
+		setStr(&par.Igm_Toxoplasma, getCol(row, "CT", "RESULTADO IGM PARA TOXOPLASMA", "TOXOPLASMA IGM"))
+		setStr(&par.AvidezToxoplasma, getCol(row, "CU", "AVIDEZ TOXOPLASMA", "AVIDEZ DE TOXOPLASMA"))
+		setStr(&par.Iga_Toxoplasma, getCol(row, "CV", "IGA TOXOPLASMA"))
+		setStr(&par.Urocultivo, getCol(row, "CW", "UROCULTIVO", "RESULTADO UROCULTIVO"))
+		setStr(&par.Hemoparasitos, getCol(row, "CX", "HEMOPARASITOS (GOTA GRUESA EN ZONA ENDEMICA)", "HEMOPARÁSITOS (GOTA GRUESA EN ZONA ENDÉMICA)", "HEMOPARASITOS (GOTA GRUESA)", "HEMOPARASITOS", "HEMOPARÁSITOS", "GOTA GRUESA"))
+		setDate(&par.Ecografia1Trimestre, getCol(row, "CZ", "FECHA DE ECOGRAFIA 1 TRIMESTRE", "FECHA DE ECOGRAFÍA 1 TRIMESTRE", "FECHA ECOGRAFIA 1 TRIMESTRE", "ECOGRAFIA 1 TRIMESTRE"))
+		setStr(&par.Eco1_Interpretacion, getCol(row, "DA", "INTERPRETACION DE LA ECOGRAFIA", "INTERPRETACIÓN DE LA ECOGRAFÍA", "INTERPRETACION ECOGRAFIA", "INTERPRETACION DE ECOGRAFIA"))
 		setStr(&par.Ptog_75gr, getCol(row, "FT"))
 		setDate(&par.EcografiaDetalle, getCol(row, "GA"))
 		setStr(&par.EcoDetalle_Interpretacion, getCol(row, "GB"))
@@ -1447,12 +1455,6 @@ func ImportFomag(c *gin.Context) {
 				}
 				config.DB.Create(&maternaUser)
 			}
-		}
-
-		if isNew {
-			creados++
-		} else {
-			actualizados++
 		}
 	}
 
